@@ -5,4 +5,3 @@ authors = ["utam0k <k0ma@utam0k.jp>"]
 
 [dependencies]
 lazy_static = "*"
-num = "*"

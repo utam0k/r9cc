@@ -1,23 +1,11 @@
-pub fn strtol(s: &String) -> (Option<i64>, String) {
-    if s.is_empty() {
-        return (None, s.clone());
-    }
+pub mod codegen;
+pub mod ir;
+pub mod parse;
+pub mod regalloc;
+pub mod token;
 
-    let mut pos = 0;
-    let mut remaining = s.clone();
-    let len = s.len();
+#[macro_use]
+extern crate lazy_static;
 
-    while len != pos {
-        if !s.chars().nth(pos).unwrap().is_ascii_digit() {
-            break;
-        }
-        pos += 1;
-    }
-
-    if len == pos {
-        (Some(remaining.parse::<i64>().unwrap()), "".into())
-    } else {
-        let t: String = remaining.drain(..pos).collect();
-        (Some(t.parse::<i64>().unwrap()), remaining)
-    }
-}
+const REGS_N: usize = 8;
+const REGS: [&str; REGS_N] = ["rdi", "rsi", "r10", "r11", "r12", "r13", "r14", "r15"];

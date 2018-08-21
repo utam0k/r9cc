@@ -16,7 +16,7 @@ fn main() {
 
     // Tokenize and parse.
     let tokens = tokenize(args.nth(1).unwrap());
-    let node = Node::expr(tokens);
+    let node = Node::parse(&tokens);
     let irv = gen_ir(node);
     let irv_alloced = alloc_regs(irv);
 

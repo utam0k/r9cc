@@ -17,11 +17,11 @@ fn main() {
     // Tokenize and parse.
     let tokens = tokenize(args.nth(1).unwrap());
     let node = Node::parse(&tokens);
-    let irv = gen_ir(node);
-    let irv_alloced = alloc_regs(irv);
+    let mut irv = gen_ir(node);
+    alloc_regs(&mut irv);
 
     print!(".intel_syntax noprefix\n");
     print!(".global main\n");
     print!("main:\n");
-    gen_x86(irv_alloced);
+    gen_x86(irv);
 }

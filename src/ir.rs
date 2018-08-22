@@ -10,6 +10,7 @@ pub enum IRType {
     ADD,
     SUB,
     MUL,
+    DIV,
 }
 
 impl From<NodeType> for IRType {
@@ -18,6 +19,7 @@ impl From<NodeType> for IRType {
             NodeType::Plus => IRType::ADD,
             NodeType::Minus => IRType::SUB,
             NodeType::Mul => IRType::MUL,
+            NodeType::Div => IRType::DIV,
             e => panic!("cannot convert: {:?}", e),
         }
     }
@@ -53,7 +55,10 @@ fn gen_ir_sub(mut v: Vec<IR>, node: Node) -> (usize, Vec<IR>) {
         return (r, v);
     }
 
-    assert!(node.ty == NodeType::Plus || node.ty == NodeType::Minus || node.ty == NodeType::Mul);
+    assert!(
+        node.ty == NodeType::Plus || node.ty == NodeType::Minus || node.ty == NodeType::Mul ||
+            node.ty == NodeType::Div
+    );
 
     let (lhs, ins) = gen_ir_sub(v, *node.lhs.unwrap());
     let (rhs, mut ins) = gen_ir_sub(ins, *node.rhs.unwrap());

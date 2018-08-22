@@ -7,6 +7,7 @@ pub enum TokenType {
     Plus,
     Minus,
     Mul,
+    Div,
 }
 
 impl From<char> for TokenType {
@@ -15,6 +16,7 @@ impl From<char> for TokenType {
             '+' => TokenType::Plus,
             '-' => TokenType::Minus,
             '*' => TokenType::Mul,
+            '/' => TokenType::Div,
             e => panic!("unknow Token type: {}", e),
         }
     }
@@ -30,7 +32,7 @@ impl Default for TokenType {
 #[derive(Default, Debug)]
 pub struct Token {
     pub ty: TokenType, // Token type
-    pub val: i32,      // Number literal
+    pub val: i32, // Number literal
     pub input: String, // Token string (for error reporting)
 }
 
@@ -47,7 +49,7 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
         }
 
         match c {
-            '+' | '-' | '*' => {
+            '+' | '-' | '*' | '/' => {
                 let token = Token {
                     ty: TokenType::from(c),
                     input: org.clone(),

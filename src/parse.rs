@@ -9,10 +9,20 @@ macro_rules! matches(
     )
 );
 
+fn consume(tokens: &Vec<Token>, ty: TokenType, pos: &mut usize) -> bool {
+    let t = &tokens[*pos];
+    if t.ty != ty {
+        return false;
+    }
+    *pos += 1;
+    return true;
+}
+
 
 #[derive(Debug, Clone)]
 pub enum NodeType {
     Num(i32), // Number literal
+    Ident(String), // Identifier
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     Return(Box<Node>), // stmt
     ExprStmt(Box<Node>), // expresson stmt
@@ -29,17 +39,18 @@ impl Node {
         Self { ty: op }
     }
 
-    fn number(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+    fn term(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         let t = &tokens[*pos];
-        if t.ty != TokenType::Num {
-            panic!("number expected, but got {}", t.input);
-        }
         *pos += 1;
-        return Self::new(NodeType::Num(t.val));
+        match t.ty {
+            TokenType::Num(val) => return Self::new(NodeType::Num(val)),
+            TokenType::Ident(ref name) => Self::new(NodeType::Ident(name.clone())),
+            _ => panic!("number expected, but got {}", t.input),
+        }
     }
 
     fn mul(tokens: &Vec<Token>, pos: &mut usize) -> Self {
-        let mut lhs = Self::number(&tokens, pos);
+        let mut lhs = Self::term(&tokens, pos);
 
         loop {
             if tokens.len() == *pos {
@@ -54,7 +65,7 @@ impl Node {
             lhs = Self::new(NodeType::BinOp(
                 op,
                 Box::new(lhs),
-                Box::new(Self::number(&tokens, pos)),
+                Box::new(Self::term(&tokens, pos)),
             ));
         }
     }
@@ -77,6 +88,18 @@ impl Node {
         }
     }
 
+    fn assign(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let lhs = Self::expr(tokens, pos);
+        if consume(tokens, TokenType::Equal, pos) {
+            return Self::new(NodeType::BinOp(
+                TokenType::Equal,
+                Box::new(lhs),
+                Box::new(Self::expr(tokens, pos)),
+            ));
+        }
+        return lhs;
+    }
+
     fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         let mut stmts = vec![];
         loop {
@@ -86,15 +109,14 @@ impl Node {
             }
 
             let e: Node;
-            let op = tokens[*pos].ty.clone();
-            match op {
+            match tokens[*pos].ty {
                 TokenType::Return => {
                     *pos += 1;
-                    let expr = Self::expr(&tokens, pos);
+                    let expr = Self::assign(&tokens, pos);
                     e = Self::new(NodeType::Return(Box::new(expr)));
                 }
                 _ => {
-                    let expr = Self::expr(&tokens, pos);
+                    let expr = Self::assign(&tokens, pos);
                     e = Self::new(NodeType::ExprStmt(Box::new(expr)));
                 }
             }

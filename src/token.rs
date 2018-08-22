@@ -1,13 +1,15 @@
 // Tokenizer
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
-    Num, // Number literal
+    Num(i32), // Number literal
+    Ident(String), // Identifier
     Plus, // +
     Minus, // -
     Mul, // *
     Div, // /
     Return, // Return
     Semicolon, // ;
+    Equal,
 }
 
 impl From<char> for TokenType {
@@ -18,6 +20,7 @@ impl From<char> for TokenType {
             '*' => TokenType::Mul,
             '/' => TokenType::Div,
             ';' => TokenType::Semicolon,
+            '=' => TokenType::Equal,
             e => panic!("unknow Token type: {}", e),
         }
     }
@@ -27,22 +30,15 @@ impl From<String> for TokenType {
     fn from(s: String) -> Self {
         match &*s {
             "return" => TokenType::Return,
-            name => panic!("unknown identifier: {}", name),
+            name => TokenType::Ident(name.to_string()),
         }
     }
 }
 
-impl Default for TokenType {
-    fn default() -> Self {
-        TokenType::Num
-    }
-}
-
 // Token type
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub ty: TokenType, // Token type
-    pub val: i32, // Number literal
     pub input: String, // Token string (for error reporting)
 }
 
@@ -60,11 +56,10 @@ pub fn scan(mut p: String) -> Vec<Token> {
 
         // Single-letter token
         match c {
-            '+' | '-' | '*' | '/' | ';' => {
+            '+' | '-' | '*' | '/' | ';' | '=' => {
                 let token = Token {
                     ty: TokenType::from(c),
                     input: org.clone(),
-                    ..Default::default()
                 };
                 p = p.split_off(1); // p++
                 tokens.push(token);
@@ -73,12 +68,12 @@ pub fn scan(mut p: String) -> Vec<Token> {
             _ => (),
         }
 
-        // Keyword
+        // Identifier
         if c.is_alphabetic() || c == '_' {
             let mut name = String::new();
             while let Some(c2) = p.chars().nth(0) {
-                p = p.split_off(1); // p++
                 if c2.is_alphabetic() || c2.is_ascii_digit() || c2 == '_' {
+                    p = p.split_off(1); // p++
                     name.push(c2);
                     continue;
                 }
@@ -87,7 +82,6 @@ pub fn scan(mut p: String) -> Vec<Token> {
             let token = Token {
                 ty: TokenType::from(name),
                 input: org.clone(),
-                ..Default::default()
             };
             tokens.push(token);
             continue;
@@ -97,9 +91,8 @@ pub fn scan(mut p: String) -> Vec<Token> {
         if c.is_ascii_digit() {
             let n = strtol(&mut p);
             let token = Token {
-                ty: TokenType::Num,
+                ty: TokenType::Num(n.unwrap() as i32),
                 input: org.clone(),
-                val: n.unwrap() as i32,
             };
             tokens.push(token);
             continue;

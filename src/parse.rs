@@ -27,6 +27,7 @@ pub enum NodeType {
     Num(i32), // Number literal
     Ident(String), // Identifier
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
+    If(Box<Node>, Box<Node>), // cond, then
     Return(Box<Node>), // stmt
     ExprStmt(Box<Node>), // expresson stmt
     CompStmt(Vec<Node>), // Compound statement
@@ -109,34 +110,44 @@ impl Node {
     }
 
     fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        match tokens[*pos].ty {
+            TokenType::If => {
+                *pos += 1;
+                expect(&tokens[*pos], TokenType::LeftParen, pos);
+                let cond = Self::assign(&tokens, pos);
+                expect(&tokens[*pos], TokenType::RightParen, pos);
+                let then = Self::stmt(&tokens, pos);
+                Self::new(NodeType::If(Box::new(cond), Box::new(then)))
+            }
+            TokenType::Return => {
+                *pos += 1;
+                let expr = Self::assign(&tokens, pos);
+                expect(&tokens[*pos], TokenType::Semicolon, pos);
+                Self::new(NodeType::Return(Box::new(expr)))
+            }
+            _ => {
+                let expr = Self::assign(&tokens, pos);
+                let node = Self::new(NodeType::ExprStmt(Box::new(expr)));
+                expect(&tokens[*pos], TokenType::Semicolon, pos);
+                return node;
+            }
+        }
+    }
+
+    fn compound_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         let mut stmts = vec![];
+
         loop {
             if tokens.len() == *pos {
                 let node = Self::new(NodeType::CompStmt(stmts));
                 return node;
             }
-
-            let e: Node;
-            match tokens[*pos].ty {
-                TokenType::Return => {
-                    *pos += 1;
-                    let expr = Self::assign(&tokens, pos);
-                    e = Self::new(NodeType::Return(Box::new(expr)));
-                }
-                _ => {
-                    let expr = Self::assign(&tokens, pos);
-                    e = Self::new(NodeType::ExprStmt(Box::new(expr)));
-                }
-            }
-            stmts.push(e);
-
-            expect(&tokens[*pos], TokenType::Semicolon, pos);
+            stmts.push(Self::stmt(tokens, pos));
         }
     }
 
     pub fn parse(tokens: &Vec<Token>) -> Self {
         let mut pos = 0;
-        let node = Self::stmt(tokens, &mut pos);
-        node
+        Self::compound_stmt(tokens, &mut pos)
     }
 }

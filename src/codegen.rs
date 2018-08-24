@@ -23,39 +23,35 @@ pub fn gen_x86(irv: Vec<IR>) {
     for ir in irv {
         let lhs = ir.lhs.unwrap();
         match ir.op {
-            IMM => print!("  mov {}, {}\n", REGS[lhs], ir.rhs.unwrap()),
-            MOV => print!("  mov {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            RETURN => {
+            Imm => print!("  mov {}, {}\n", REGS[lhs], ir.rhs.unwrap()),
+            Mov => print!("  mov {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            Return => {
                 print!("  mov rax, {}\n", REGS[lhs]);
                 print!("  jmp {}\n", ret);
             }
-            ALLOCA => {
+            Alloca => {
                 if ir.rhs.is_some() {
                     print!("  sub rsp, {}\n", ir.rhs.unwrap());
                 }
                 print!("  mov {}, rsp\n", REGS[lhs]);
             }
-            LOAD => print!("  mov {}, [{}]\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            STORE => print!("  mov [{}], {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            ADD(imm) => {
-                match imm {
-                    Some(val) => print!("  add {}, {}\n", REGS[lhs], val),
-                    None => print!("  add {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-                }
-            }
-            SUB => print!("  sub {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            MUL => {
+            Load => print!("  mov {}, [{}]\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            Store => print!("  mov [{}], {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            Add => print!("  add {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            AddImm => print!("  add {}, {}\n", REGS[lhs], ir.rhs.unwrap()),
+            Sub => print!("  sub {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            Mul => {
                 print!("  mov rax, {}\n", REGS[ir.rhs.unwrap()]);
                 print!("  mul {}\n", REGS[lhs]);
                 print!("  mov {}, rax\n", REGS[lhs]);
             }
-            DIV => {
+            Div => {
                 print!("  mov rax, {}\n", REGS[lhs]);
                 print!("  cqo\n");
                 print!("  div {}\n", REGS[ir.rhs.unwrap()]);
                 print!("  mov {}, rax\n", REGS[lhs]);
             }
-            NOP | KILL => (),
+            Nop | Kill => (),
         }
     }
 

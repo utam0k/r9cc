@@ -21,7 +21,7 @@ fn main() {
         input = args.nth(0).unwrap();
     } else {
         if args.len() != 2 {
-            eprint!("Usage: 9cc [-dump-ir] <code>\n");
+            eprint!("Usage: 9cc [-dump-ir1] [-dump-ir2] <code>\n");
             return;
         }
         input = args.nth(1).unwrap();

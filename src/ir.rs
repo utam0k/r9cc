@@ -65,7 +65,7 @@ impl fmt::Display for IR {
         let info = get_irinfo(self);
         let lhs = self.lhs.unwrap();
         match info.ty {
-            Label => write!(f, "{}=>\n", lhs),
+            Label => write!(f, ".L{}=>\n", lhs),
             Reg => write!(f, "{} r{}\n", info.name, lhs),
             RegReg => write!(f, "{} r{}, r{}\n", info.name, lhs, self.rhs.unwrap()),
             RegImm => write!(f, "{} r{}, {}\n", info.name, lhs, self.rhs.unwrap()),

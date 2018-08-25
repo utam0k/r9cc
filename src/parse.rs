@@ -27,7 +27,7 @@ pub enum NodeType {
     Num(i32), // Number literal
     Ident(String), // Identifier
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
-    If(Box<Node>, Box<Node>), // cond, then
+    If(Box<Node>, Box<Node>, Option<Box<Node>>), // cond, then, els
     Return(Box<Node>), // stmt
     ExprStmt(Box<Node>), // expresson stmt
     CompStmt(Vec<Node>), // Compound statement
@@ -112,12 +112,16 @@ impl Node {
     fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         match tokens[*pos].ty {
             TokenType::If => {
+                let mut els = None;
                 *pos += 1;
                 expect(&tokens[*pos], TokenType::LeftParen, pos);
                 let cond = Self::assign(&tokens, pos);
                 expect(&tokens[*pos], TokenType::RightParen, pos);
                 let then = Self::stmt(&tokens, pos);
-                Self::new(NodeType::If(Box::new(cond), Box::new(then)))
+                if consume(tokens, TokenType::Else, pos) {
+                    els = Some(Box::new(Self::stmt(&tokens, pos)));
+                }
+                Self::new(NodeType::If(Box::new(cond), Box::new(then), els))
             }
             TokenType::Return => {
                 *pos += 1;

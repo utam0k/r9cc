@@ -11,7 +11,7 @@ lazy_static!{
     static ref BASE_REG: Mutex<usize> = Mutex::new(0);
     static ref BPOFF: Mutex<usize> = Mutex::new(0);
     static ref LABEL: Mutex<usize> = Mutex::new(0);
-    static ref IRINFO: [IRInfo; 15] = [
+    static ref IRINFO: [IRInfo; 16] = [
         IRInfo::new(IROp::Add, "+", IRType::RegReg),
         IRInfo::new(IROp::Sub, "-", IRType::RegReg),
         IRInfo::new(IROp::Mul, "*", IRType::RegReg),
@@ -20,6 +20,7 @@ lazy_static!{
         IRInfo::new(IROp::AddImm, "ADD", IRType::RegImm),
         IRInfo::new(IROp::Mov, "MOV", IRType::RegReg),
         IRInfo::new(IROp::Label, "", IRType::Label),
+        IRInfo::new(IROp::Jmp, "", IRType::Label),
         IRInfo::new(IROp::Unless, "UNLESS", IRType::RegLabel),
         IRInfo::new(IROp::Return, "RET", IRType::Reg),
         IRInfo::new(IROp::Alloca, "ALLOCA", IRType::RegImm),
@@ -31,7 +32,7 @@ lazy_static!{
 }
 
 #[derive(Clone)]
-enum IRType {
+pub enum IRType {
     Noarg,
     Reg,
     Label,
@@ -41,10 +42,10 @@ enum IRType {
 }
 
 #[derive(Clone)]
-struct IRInfo {
+pub struct IRInfo {
     op: IROp,
     name: &'static str,
-    ty: IRType,
+    pub ty: IRType,
 }
 
 impl IRInfo {
@@ -80,7 +81,7 @@ pub fn dump_ir(irv: &Vec<IR>) {
     }
 }
 
-fn get_irinfo(ir: &IR) -> IRInfo {
+pub fn get_irinfo(ir: &IR) -> IRInfo {
     for info in IRINFO.iter() {
         if info.op == ir.op {
             return info.clone();
@@ -100,6 +101,7 @@ pub enum IROp {
     Div,
     Return,
     Label,
+    Jmp,
     Unless,
     Alloca,
     Load,
@@ -205,15 +207,26 @@ fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
 
 fn gen_stmt(code: &mut Vec<IR>, node: Node) {
     match node.ty {
-        NodeType::If(cond, then) => {
+        NodeType::If(cond, then, els_may) => {
             let r = gen_expr(code, *cond);
             let x = Some(*LABEL.lock().unwrap());
             *LABEL.lock().unwrap() += 1;
             code.push(IR::new(IROp::Unless, r, x));
             code.push(IR::new(IROp::Kill, r, None));
             gen_stmt(code, *then);
-            code.push(IR::new(IROp::Label, x, None));
-            return;
+
+            if let Some(els) = els_may {
+                let y = Some(*LABEL.lock().unwrap());
+                *LABEL.lock().unwrap() += 1;
+                code.push(IR::new(IROp::Jmp, y, None));
+                code.push(IR::new(IROp::Label, x, None));
+                gen_stmt(code, *els);
+                code.push(IR::new(IROp::Label, y, None));
+                return;
+            } else {
+                code.push(IR::new(IROp::Label, x, None));
+                return;
+            }
         }
         NodeType::Return(expr) => {
             let r = gen_expr(code, *expr);

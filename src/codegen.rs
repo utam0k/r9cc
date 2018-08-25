@@ -1,12 +1,6 @@
 use ir::{IROp, IR};
 use REGS;
 
-use std::sync::Mutex;
-
-lazy_static!{
-    static ref n: Mutex<usize> = Mutex::new(0);
-}
-
 pub fn gen_x86(irv: Vec<IR>) {
     use self::IROp::*;
     let ret = ".Lend";
@@ -24,6 +18,7 @@ pub fn gen_x86(irv: Vec<IR>) {
                 print!("  jmp {}\n", ret);
             }
             Label => print!(".L{}:\n", lhs),
+            Jmp => print!("  jmp .L{}\n", lhs),
             Unless => {
                 print!("  cmp {}, 0\n", REGS[lhs]);
                 print!("  je .L{}\n", ir.rhs.unwrap());

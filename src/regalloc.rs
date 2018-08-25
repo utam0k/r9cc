@@ -1,4 +1,4 @@
-use ir::{IROp, IR};
+use ir::{IROp, IR, get_irinfo, IRType};
 use REGS_N;
 
 use std::sync::Mutex;
@@ -50,7 +50,7 @@ fn kill(r: usize) {
 }
 
 pub fn alloc_regs(irv: &mut Vec<IR>) {
-    use self::IROp::*;
+    use self::IRType::*;
     let irv_len = irv.len();
 
     if irv_len > INIT_ARRAY_SIZE {
@@ -61,19 +61,20 @@ pub fn alloc_regs(irv: &mut Vec<IR>) {
 
     for i in 0..irv_len {
         let mut ir = irv[i].clone();
-        match ir.op {
-            Imm | AddImm | Return | Alloca | Label | Unless => {
-                ir.lhs = Some(alloc(ir.lhs.unwrap()))
-            }
-            Mov | Load | Store | Add | Sub | Mul | Div => {
+        let info = get_irinfo(&ir);
+
+        match info.ty {
+            Reg | RegImm | RegLabel => ir.lhs = Some(alloc(ir.lhs.unwrap())),
+            RegReg => {
                 ir.lhs = Some(alloc(ir.lhs.unwrap()));
                 ir.rhs = Some(alloc(ir.rhs.unwrap()));
             }
-            Kill => {
-                kill(reg_map_get(ir.lhs.unwrap()).unwrap());
-                ir.op = Nop;
-            }
-            op => panic!("unknow operator: {:?}", op),
+            _ => (),
+        }
+
+        if ir.op == IROp::Kill {
+            kill(ir.lhs.unwrap());
+            ir.op = IROp::Nop;
         }
         irv[i] = ir;
     }

@@ -11,7 +11,7 @@ lazy_static!{
     static ref BASE_REG: Mutex<usize> = Mutex::new(0);
     static ref BPOFF: Mutex<usize> = Mutex::new(0);
     static ref LABEL: Mutex<usize> = Mutex::new(0);
-    static ref IRINFO: [IRInfo; 16] = [
+    static ref IRINFO: [IRInfo; 17] = [
         IRInfo::new(IROp::Add, "+", IRType::RegReg),
         IRInfo::new(IROp::Sub, "-", IRType::RegReg),
         IRInfo::new(IROp::Mul, "*", IRType::RegReg),
@@ -22,6 +22,7 @@ lazy_static!{
         IRInfo::new(IROp::Label, "", IRType::Label),
         IRInfo::new(IROp::Jmp, "", IRType::Label),
         IRInfo::new(IROp::Unless, "UNLESS", IRType::RegLabel),
+        IRInfo::new(IROp::Call(String::new(), 0, [0; 6]), "CALL", IRType::Call),
         IRInfo::new(IROp::Return, "RET", IRType::Reg),
         IRInfo::new(IROp::Alloca, "ALLOCA", IRType::RegImm),
         IRInfo::new(IROp::Load, "LOAD", IRType::RegReg),
@@ -31,7 +32,21 @@ lazy_static!{
     ];
 }
 
-#[derive(Clone)]
+// impl PartialEq for IROp {
+//     fn eq(&self, other: &IROp) -> bool {
+//         match self {
+//             IROp::Call(name, _, _) => {
+//                 match other {
+//                     IROp::Call(other_name, _, _) => name == other_name,
+//                     _ => false,
+//                 }
+//             }
+//             _ => self == other,
+//         }
+//     }
+// }
+
+#[derive(Clone, Debug)]
 pub enum IRType {
     Noarg,
     Reg,
@@ -39,9 +54,10 @@ pub enum IRType {
     RegReg,
     RegImm,
     RegLabel,
+    Call,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IRInfo {
     op: IROp,
     name: &'static str,
@@ -70,6 +86,18 @@ impl fmt::Display for IR {
             RegReg => write!(f, "{} r{}, r{}\n", info.name, lhs, self.rhs.unwrap()),
             RegImm => write!(f, "{} r{}, {}\n", info.name, lhs, self.rhs.unwrap()),
             RegLabel => write!(f, "{} r{}, .L{}\n", info.name, lhs, self.rhs.unwrap()),
+            Call => {
+                match self.op {
+                    IROp::Call(ref name, nargs, args) => {
+                        let mut sb: String = format!(", r{} = {}(", name, lhs);
+                        for i in 0..nargs {
+                            sb.push_str(&format!(", r{}", args[i]));
+                        }
+                        write!(f, "{}", sb)
+                    }
+                    _ => unreachable!(),
+                }
+            }
             Noarg => write!(f, "{}\n", info.name),
         }
     }
@@ -83,8 +111,15 @@ pub fn dump_ir(irv: &Vec<IR>) {
 
 pub fn get_irinfo(ir: &IR) -> IRInfo {
     for info in IRINFO.iter() {
-        if info.op == ir.op {
-            return info.clone();
+        match ir.op {
+            IROp::Call(ref name, nargs, args) => {
+                return IRInfo::new(IROp::Call(name.clone(), nargs, args), "CALL", IRType::Call)
+            }
+            _ => {
+                if info.op == ir.op {
+                    return info.clone();
+                }
+            }
         }
     }
     panic!("invalid instruction")
@@ -100,6 +135,7 @@ pub enum IROp {
     Mul,
     Div,
     Return,
+    Call(String, usize, [usize; 6]),
     Label,
     Jmp,
     Unless,
@@ -180,6 +216,22 @@ fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
         NodeType::Ident(_) => {
             let r = gen_lval(code, node);
             code.push(IR::new(IROp::Load, r, r));
+            return r;
+        }
+        NodeType::Call(name, args) => {
+            let mut args_ir: [usize; 6] = [0; 6];
+            for i in 0..args.len() {
+                args_ir[i] = gen_expr(code, args[i].clone()).unwrap();
+            }
+
+            let r = Some(*REGNO.lock().unwrap());
+            *REGNO.lock().unwrap() += 1;
+
+            code.push(IR::new(IROp::Call(name, args.len(), args_ir), r, None));
+
+            for i in 0..args.len() {
+                code.push(IR::new(IROp::Kill, Some(args_ir[i]), None));
+            }
             return r;
         }
         NodeType::BinOp(op, lhs, rhs) => {

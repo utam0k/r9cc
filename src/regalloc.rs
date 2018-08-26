@@ -69,6 +69,19 @@ pub fn alloc_regs(irv: &mut Vec<IR>) {
                 ir.lhs = Some(alloc(ir.lhs.unwrap()));
                 ir.rhs = Some(alloc(ir.rhs.unwrap()));
             }
+            Call => {
+                ir.lhs = Some(alloc(ir.lhs.unwrap()));
+                match ir.op {
+                    IROp::Call(name, nargs, args) => {
+                        let mut args_new: [usize; 6] = [0; 6];
+                        for i in 0..args.len() {
+                            args_new[i] = alloc(args[i]);
+                        }
+                        ir.op = IROp::Call(name, nargs, args_new);
+                    }
+                    _ => unreachable!(),
+                }
+            }
             _ => (),
         }
 

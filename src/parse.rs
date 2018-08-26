@@ -29,6 +29,7 @@ pub enum NodeType {
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // cond, then, els
     Return(Box<Node>), // stmt
+    Call(String, Vec<Node>), // name, args
     ExprStmt(Box<Node>), // expresson stmt
     CompStmt(Vec<Node>), // Compound statement
 }
@@ -48,7 +49,23 @@ impl Node {
         *pos += 1;
         match t.ty {
             TokenType::Num(val) => return Self::new(NodeType::Num(val)),
-            TokenType::Ident(ref name) => Self::new(NodeType::Ident(name.clone())),
+            TokenType::Ident(ref name) => {
+                if !consume(tokens, TokenType::LeftParen, pos) {
+                    return Self::new(NodeType::Ident(name.clone()));
+                }
+
+                let mut args = vec![];
+                if consume(tokens, TokenType::RightParen, pos) {
+                    return Self::new(NodeType::Call(name.clone(), args));
+                }
+
+                args.push(Self::assign(tokens, pos));
+                while consume(tokens, TokenType::Colon, pos) {
+                    args.push(Self::assign(tokens, pos));
+                }
+                expect(&tokens[*pos], TokenType::RightParen, pos);
+                return Self::new(NodeType::Call(name.clone(), args));
+            }
             TokenType::LeftParen => {
                 let node = Self::assign(tokens, pos);
                 expect(&tokens[*pos], TokenType::RightParen, pos);
@@ -152,6 +169,7 @@ impl Node {
 
     pub fn parse(tokens: &Vec<Token>) -> Self {
         let mut pos = 0;
-        Self::compound_stmt(tokens, &mut pos)
+        let a = Self::compound_stmt(tokens, &mut pos);
+        return a;
     }
 }

@@ -13,7 +13,8 @@ pub enum TokenType {
     Semicolon, // ;
     LeftParen, // (
     RightParen, // )
-    Equal,
+    Equal, // =
+    Colon, // ,
 }
 
 impl From<char> for TokenType {
@@ -28,6 +29,7 @@ impl From<char> for TokenType {
             '=' => Equal,
             '(' => LeftParen,
             ')' => RightParen,
+            ',' => Colon,
             e => panic!("unknow Token type: {}", e),
         }
     }
@@ -65,7 +67,7 @@ pub fn scan(mut p: String) -> Vec<Token> {
 
         // Single-letter token
         match c {
-            '+' | '-' | '*' | '/' | ';' | '=' | '(' | ')' => {
+            '+' | '-' | '*' | '/' | ';' | '=' | '(' | ')' | ',' => {
                 let token = Token {
                     ty: TokenType::from(c),
                     input: org.clone(),

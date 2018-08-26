@@ -17,6 +17,32 @@ pub fn gen_x86(irv: Vec<IR>) {
                 print!("  mov rax, {}\n", REGS[lhs]);
                 print!("  jmp {}\n", ret);
             }
+            Call(name, nargs, args) => {
+                print!("  push rbx\n");
+                print!("  push rbp\n");
+                print!("  push rsp\n");
+                print!("  push r12\n");
+                print!("  push r13\n");
+                print!("  push r14\n");
+                print!("  push r15\n");
+
+                let arg = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+                for i in 0..nargs {
+                    print!("  mov {}, {}\n", arg[i], REGS[args[i]]);
+                }
+
+                print!("  mov rax, 0\n");
+                print!("  call {}\n", name);
+                print!("  mov {}, rax\n", REGS[lhs]);
+
+                print!("  push r15\n");
+                print!("  push r14\n");
+                print!("  push r13\n");
+                print!("  push r12\n");
+                print!("  push rsp\n");
+                print!("  push rbp\n");
+                print!("  push rbx\n");
+            }
             Label => print!(".L{}:\n", lhs),
             Jmp => print!("  jmp .L{}\n", lhs),
             Unless => {

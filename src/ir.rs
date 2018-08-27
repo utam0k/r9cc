@@ -32,20 +32,6 @@ lazy_static!{
     ];
 }
 
-// impl PartialEq for IROp {
-//     fn eq(&self, other: &IROp) -> bool {
-//         match self {
-//             IROp::Call(name, _, _) => {
-//                 match other {
-//                     IROp::Call(other_name, _, _) => name == other_name,
-//                     _ => false,
-//                 }
-//             }
-//             _ => self == other,
-//         }
-//     }
-// }
-
 #[derive(Clone, Debug)]
 pub enum IRType {
     Noarg,
@@ -89,7 +75,7 @@ impl fmt::Display for IR {
             Call => {
                 match self.op {
                     IROp::Call(ref name, nargs, args) => {
-                        let mut sb: String = format!(", r{} = {}(", name, lhs);
+                        let mut sb: String = format!(", r{} = {}(", lhs, name);
                         for i in 0..nargs {
                             sb.push_str(&format!(", r{}", args[i]));
                         }
@@ -103,9 +89,12 @@ impl fmt::Display for IR {
     }
 }
 
-pub fn dump_ir(irv: &Vec<IR>) {
-    for ir in irv {
-        print!("{}", ir);
+pub fn dump_ir(fns: &Vec<Function>) {
+    for f in fns {
+        print!("{}(): \n", f.name);
+        for ir in &f.ir {
+            print!("{}", ir);
+        }
     }
 }
 
@@ -123,6 +112,23 @@ pub fn get_irinfo(ir: &IR) -> IRInfo {
         }
     }
     panic!("invalid instruction")
+}
+
+#[derive(Clone, Debug)]
+pub struct Function {
+    pub name: String,
+    // args: [usize; 6],
+    pub ir: Vec<IR>,
+}
+
+impl Function {
+    fn new(name: String, ir: Vec<IR>) -> Self {
+        Function {
+            name: name,
+            // args: args,
+            ir: ir,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -298,12 +304,26 @@ fn gen_stmt(code: &mut Vec<IR>, node: Node) {
     }
 }
 
-pub fn gen_ir(node: Node) -> Vec<IR> {
-    let mut code = vec![];
+pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
+    let mut v = vec![];
+    for node in nodes {
+        match node.ty {
+            NodeType::Func(name, _, body) => {
+                let mut code = vec![];
+                *VARS.lock().unwrap() = HashMap::new();
+                *REGNO.lock().unwrap() = 1;
+                *BASE_REG.lock().unwrap() = 0;
+                *BPOFF.lock().unwrap() = 0;
+                *LABEL.lock().unwrap() = 0;
 
-    code.push(IR::new(IROp::Alloca, Some(*BASE_REG.lock().unwrap()), None));
-    gen_stmt(&mut code, node);
-    code[0].rhs = Some(*BPOFF.lock().unwrap());
-    code.push(IR::new(IROp::Kill, Some(*BASE_REG.lock().unwrap()), None));
-    code
+                code.push(IR::new(IROp::Alloca, Some(*BASE_REG.lock().unwrap()), None));
+                gen_stmt(&mut code, *body);
+                code[0].rhs = Some(*BPOFF.lock().unwrap());
+                code.push(IR::new(IROp::Kill, Some(*BASE_REG.lock().unwrap()), None));
+                v.push(Function::new(name, code));
+            }
+            _ => panic!("parse error."),
+        }
+    }
+    v
 }

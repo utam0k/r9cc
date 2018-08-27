@@ -1,14 +1,28 @@
-use ir::{IROp, IR};
+use ir::{IROp, Function};
 use REGS;
 
-pub fn gen_x86(irv: Vec<IR>) {
-    use self::IROp::*;
-    let ret = ".Lend";
+use std::sync::Mutex;
 
+lazy_static! {
+    static ref LABEL: Mutex<usize> = Mutex::new(0);
+}
+
+
+fn gen(f: Function) {
+    use self::IROp::*;
+    let ret = format!(".Lend{}", *LABEL.lock().unwrap());
+    *LABEL.lock().unwrap() += 1;
+
+    print!(".global {}\n", f.name);
+    print!("{}:\n", f.name);
+    print!("  push r12\n");
+    print!("  push r13\n");
+    print!("  push r14\n");
+    print!("  push r15\n");
     print!("  push rbp\n");
     print!("  mov rbp, rsp\n");
 
-    for ir in irv {
+    for ir in f.ir {
         let lhs = ir.lhs.unwrap();
         match ir.op {
             Imm => print!("  mov {}, {}\n", REGS[lhs], ir.rhs.unwrap()),
@@ -18,30 +32,18 @@ pub fn gen_x86(irv: Vec<IR>) {
                 print!("  jmp {}\n", ret);
             }
             Call(name, nargs, args) => {
-                print!("  push rbx\n");
-                print!("  push rbp\n");
-                print!("  push rsp\n");
-                print!("  push r12\n");
-                print!("  push r13\n");
-                print!("  push r14\n");
-                print!("  push r15\n");
-
                 let arg = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
                 for i in 0..nargs {
                     print!("  mov {}, {}\n", arg[i], REGS[args[i]]);
                 }
-
+                print!("  push r10\n");
+                print!("  push r11\n");
                 print!("  mov rax, 0\n");
                 print!("  call {}\n", name);
-                print!("  mov {}, rax\n", REGS[lhs]);
+                print!("  pop r11\n");
+                print!("  pop r10\n");
 
-                print!("  push r15\n");
-                print!("  push r14\n");
-                print!("  push r13\n");
-                print!("  push r12\n");
-                print!("  push rsp\n");
-                print!("  push rbp\n");
-                print!("  push rbx\n");
+                print!("  mov {}, rax\n", REGS[lhs]);
             }
             Label => print!(".L{}:\n", lhs),
             Jmp => print!("  jmp .L{}\n", lhs),
@@ -77,7 +79,17 @@ pub fn gen_x86(irv: Vec<IR>) {
 
     print!("{}:\n", ret);
     print!("  mov rsp, rbp\n");
-    print!("  mov rsp, rbp\n");
     print!("  pop rbp\n");
+    print!("  pop r15\n");
+    print!("  pop r14\n");
+    print!("  pop r13\n");
+    print!("  pop r12\n");
     print!("  ret\n");
+}
+
+pub fn gen_x86(fns: Vec<Function>) {
+    print!(".intel_syntax noprefix\n");
+    for f in fns {
+        gen(f);
+    }
 }

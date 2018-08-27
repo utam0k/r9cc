@@ -1,4 +1,4 @@
-use ir::{IROp, IR, get_irinfo, IRType};
+use ir::{IROp, IR, get_irinfo, IRType, Function};
 use REGS_N;
 
 use std::sync::Mutex;
@@ -49,7 +49,7 @@ fn kill(r: usize) {
     used_set(r, false);
 }
 
-pub fn alloc_regs(irv: &mut Vec<IR>) {
+fn visit(irv: &mut Vec<IR>) {
     use self::IRType::*;
     let irv_len = irv.len();
 
@@ -90,5 +90,14 @@ pub fn alloc_regs(irv: &mut Vec<IR>) {
             ir.op = IROp::Nop;
         }
         irv[i] = ir;
+    }
+}
+
+pub fn alloc_regs(fns: &mut Vec<Function>) {
+    for f in fns {
+        *REG_MAP.lock().unwrap() = vec![None; INIT_ARRAY_SIZE];
+        *USED.lock().unwrap() = [false; REGS_N];
+
+        visit(&mut f.ir);
     }
 }

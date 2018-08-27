@@ -29,7 +29,8 @@ pub enum NodeType {
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // cond, then, els
     Return(Box<Node>), // stmt
-    Call(String, Vec<Node>), // name, args
+    Call(String, Vec<Node>), // Function call(name, args)
+    Func(String, Vec<Node>, Box<Node>), // Function definition(name, args, body)
     ExprStmt(Box<Node>), // expresson stmt
     CompStmt(Vec<Node>), // Compound statement
 }
@@ -158,18 +159,38 @@ impl Node {
     fn compound_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         let mut stmts = vec![];
 
-        loop {
-            if tokens.len() == *pos {
-                let node = Self::new(NodeType::CompStmt(stmts));
-                return node;
-            }
+        while !consume(tokens, TokenType::RightBrace, pos) {
             stmts.push(Self::stmt(tokens, pos));
+        }
+        Self::new(NodeType::CompStmt(stmts))
+    }
+
+    fn function(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let t = tokens[*pos].clone();
+        match t.ty {
+            TokenType::Ident(name) => {
+                *pos += 1;
+
+                let mut args = vec![];
+                expect(&tokens[*pos], TokenType::LeftParen, pos);
+                while !consume(tokens, TokenType::RightParen, pos) {
+                    args.push(Self::term(tokens, pos));
+                }
+                expect(&tokens[*pos], TokenType::LeftBrace, pos);
+                let body = Self::compound_stmt(tokens, pos);
+                Node::new(NodeType::Func(name, args, Box::new(body)))
+            }
+            _ => panic!("function name expected, but got {}", t.input),
         }
     }
 
-    pub fn parse(tokens: &Vec<Token>) -> Self {
+    pub fn parse(tokens: &Vec<Token>) -> Vec<Self> {
         let mut pos = 0;
-        let a = Self::compound_stmt(tokens, &mut pos);
-        return a;
+
+        let mut v = vec![];
+        while tokens.len() != pos {
+            v.push(Self::function(tokens, &mut pos))
+        }
+        v
     }
 }

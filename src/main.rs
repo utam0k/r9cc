@@ -8,43 +8,38 @@ use r9cc::token::tokenize;
 
 use std::env;
 fn main() {
-    let mut args = env::args();
+    let args: Vec<String> = env::args().collect();
     let input: String;
     let mut dump_ir1 = false;
     let mut dump_ir2 = false;
 
-    if args.len() == 3 && args.nth(1).unwrap() == "-dump-ir1" {
+    if args.len() == 3 && args[1] == "-dump-ir1" {
         dump_ir1 = true;
-        input = args.nth(0).unwrap();
-    } else if args.len() == 3 && args.nth(1).unwrap() == "-dump-ir2" {
+        input = args[2].clone();
+    } else if args.len() == 3 && args[1] == "-dump-ir2" {
         dump_ir2 = true;
-        input = args.nth(0).unwrap();
+        input = args[2].clone();
     } else {
         if args.len() != 2 {
             eprint!("Usage: 9cc [-dump-ir1] [-dump-ir2] <code>\n");
             return;
         }
-        input = args.nth(1).unwrap();
+        input = args[1].clone();
     }
 
     // Tokenize and parse.
     let tokens = tokenize(input);
-    let node = Node::parse(&tokens);
-
-    let mut irv = gen_ir(node);
+    let mut fns = gen_ir(Node::parse(&tokens));
 
     if dump_ir1 {
-        dump_ir(&irv);
+        dump_ir(&fns);
     }
 
-    alloc_regs(&mut irv);
+    alloc_regs(&mut fns);
 
     if dump_ir2 {
-        dump_ir(&irv);
+        dump_ir(&fns);
     }
 
-    print!(".intel_syntax noprefix\n");
-    print!(".global main\n");
-    print!("main:\n");
-    gen_x86(irv);
+    gen_x86(fns);
 }

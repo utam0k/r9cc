@@ -1,3 +1,6 @@
+// Compile AST to intermediate code that has infinite number of registers.
+// Base pointer is always assigned to r0.
+
 use parse::{Node, NodeType};
 use token::TokenType;
 
@@ -7,15 +10,15 @@ use std::collections::HashMap;
 
 lazy_static!{
     static ref VARS: Mutex<HashMap<String, usize>> = Mutex::new(HashMap::new());
+
     static ref REGNO: Mutex<usize> = Mutex::new(1);
-    static ref BASE_REG: Mutex<usize> = Mutex::new(0);
-    static ref BPOFF: Mutex<usize> = Mutex::new(0);
+    static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
     static ref LABEL: Mutex<usize> = Mutex::new(0);
-    static ref IRINFO: [IRInfo; 17] = [
-        IRInfo::new(IROp::Add, "+", IRType::RegReg),
-        IRInfo::new(IROp::Sub, "-", IRType::RegReg),
-        IRInfo::new(IROp::Mul, "*", IRType::RegReg),
-        IRInfo::new(IROp::Div, "/", IRType::RegReg),
+    static ref IRINFO: [IRInfo; 16] = [
+        IRInfo::new(IROp::Add, "ADD", IRType::RegReg),
+        IRInfo::new(IROp::Sub, "SUB", IRType::RegReg),
+        IRInfo::new(IROp::Mul, "MUL", IRType::RegReg),
+        IRInfo::new(IROp::Div, "DIV", IRType::RegReg),
         IRInfo::new(IROp::Imm, "MOV", IRType::RegImm),
         IRInfo::new(IROp::AddImm, "ADD", IRType::RegImm),
         IRInfo::new(IROp::Mov, "MOV", IRType::RegReg),
@@ -24,7 +27,6 @@ lazy_static!{
         IRInfo::new(IROp::Unless, "UNLESS", IRType::RegLabel),
         IRInfo::new(IROp::Call(String::new(), 0, [0; 6]), "CALL", IRType::Call),
         IRInfo::new(IROp::Return, "RET", IRType::Reg),
-        IRInfo::new(IROp::Alloca, "ALLOCA", IRType::RegImm),
         IRInfo::new(IROp::Load, "LOAD", IRType::RegReg),
         IRInfo::new(IROp::Store, "STORE", IRType::RegReg),
         IRInfo::new(IROp::Kill, "KILL", IRType::Reg),
@@ -93,7 +95,7 @@ pub fn dump_ir(fns: &Vec<Function>) {
     for f in fns {
         print!("{}(): \n", f.name);
         for ir in &f.ir {
-            print!("{}", ir);
+            print!("  {}", ir);
         }
     }
 }
@@ -119,14 +121,16 @@ pub struct Function {
     pub name: String,
     // args: [usize; 6],
     pub ir: Vec<IR>,
+    pub stacksize: usize,
 }
 
 impl Function {
-    fn new(name: String, ir: Vec<IR>) -> Self {
+    fn new(name: String, ir: Vec<IR>, stacksize: usize) -> Self {
         Function {
             name: name,
             // args: args,
             ir: ir,
+            stacksize: stacksize,
         }
     }
 }
@@ -145,7 +149,6 @@ pub enum IROp {
     Label,
     Jmp,
     Unless,
-    Alloca,
     Load,
     Store,
     Kill,
@@ -196,15 +199,15 @@ fn gen_lval(code: &mut Vec<IR>, node: Node) -> Option<usize> {
             if VARS.lock().unwrap().get(&name).is_none() {
                 VARS.lock().unwrap().insert(
                     name.clone(),
-                    *BPOFF.lock().unwrap(),
+                    *STACKSIZE.lock().unwrap(),
                 );
-                *BPOFF.lock().unwrap() += 8;
+                *STACKSIZE.lock().unwrap() += 8;
             }
             let r = Some(*REGNO.lock().unwrap());
             *REGNO.lock().unwrap() += 1;
             let off = *VARS.lock().unwrap().get(&name).unwrap();
-            code.push(IR::new(IROp::Mov, r, Some(*BASE_REG.lock().unwrap())));
-            code.push(IR::new(IROp::AddImm, r, Some(off)));
+            code.push(IR::new(IROp::Mov, r, Some(0)));
+            code.push(IR::new(IROp::AddImm, r, Some(-(off as i32) as usize)));
             return r;
         }
         _ => panic!("not an lvalue"),
@@ -311,16 +314,13 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
             NodeType::Func(name, _, body) => {
                 let mut code = vec![];
                 *VARS.lock().unwrap() = HashMap::new();
-                *REGNO.lock().unwrap() = 1;
-                *BASE_REG.lock().unwrap() = 0;
-                *BPOFF.lock().unwrap() = 0;
-                *LABEL.lock().unwrap() = 0;
 
-                code.push(IR::new(IROp::Alloca, Some(*BASE_REG.lock().unwrap()), None));
+                *REGNO.lock().unwrap() = 1;
+                *STACKSIZE.lock().unwrap() = 8;
+
                 gen_stmt(&mut code, *body);
-                code[0].rhs = Some(*BPOFF.lock().unwrap());
-                code.push(IR::new(IROp::Kill, Some(*BASE_REG.lock().unwrap()), None));
-                v.push(Function::new(name, code));
+
+                v.push(Function::new(name, code, *STACKSIZE.lock().unwrap()));
             }
             _ => panic!("parse error."),
         }

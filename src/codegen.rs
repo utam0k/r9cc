@@ -15,17 +15,18 @@ fn gen(f: Function) {
 
     print!(".global {}\n", f.name);
     print!("{}:\n", f.name);
+    print!("  push rbp\n");
+    print!("  mov rbp, rsp\n");
+    print!("  sub rsp, {}\n", f.stacksize);
     print!("  push r12\n");
     print!("  push r13\n");
     print!("  push r14\n");
     print!("  push r15\n");
-    print!("  push rbp\n");
-    print!("  mov rbp, rsp\n");
 
     for ir in f.ir {
         let lhs = ir.lhs.unwrap();
         match ir.op {
-            Imm => print!("  mov {}, {}\n", REGS[lhs], ir.rhs.unwrap()),
+            Imm => print!("  mov {}, {}\n", REGS[lhs], ir.rhs.unwrap() as i32),
             Mov => print!("  mov {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             Return => {
                 print!("  mov rax, {}\n", REGS[lhs]);
@@ -51,16 +52,10 @@ fn gen(f: Function) {
                 print!("  cmp {}, 0\n", REGS[lhs]);
                 print!("  je .L{}\n", ir.rhs.unwrap());
             }
-            Alloca => {
-                if ir.rhs.is_some() {
-                    print!("  sub rsp, {}\n", ir.rhs.unwrap());
-                }
-                print!("  mov {}, rsp\n", REGS[lhs]);
-            }
             Load => print!("  mov {}, [{}]\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             Store => print!("  mov [{}], {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             Add => print!("  add {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            AddImm => print!("  add {}, {}\n", REGS[lhs], ir.rhs.unwrap()),
+            AddImm => print!("  add {}, {}\n", REGS[lhs], ir.rhs.unwrap() as i32),
             Sub => print!("  sub {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             Mul => {
                 print!("  mov rax, {}\n", REGS[ir.rhs.unwrap()]);
@@ -78,12 +73,12 @@ fn gen(f: Function) {
     }
 
     print!("{}:\n", ret);
-    print!("  mov rsp, rbp\n");
-    print!("  pop rbp\n");
     print!("  pop r15\n");
     print!("  pop r14\n");
     print!("  pop r13\n");
     print!("  pop r12\n");
+    print!("  mov rsp, rbp\n");
+    print!("  pop rbp\n");
     print!("  ret\n");
 }
 

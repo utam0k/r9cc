@@ -37,8 +37,8 @@ fn alloc(ir_reg: usize) -> usize {
         if used_get(i) {
             continue;
         }
-        used_set(i, true);
         reg_map_set(ir_reg, i);
+        used_set(i, true);
         return i;
     }
     panic!("register exhauseted");
@@ -51,8 +51,12 @@ fn kill(r: usize) {
 
 fn visit(irv: &mut Vec<IR>) {
     use self::IRType::*;
-    let irv_len = irv.len();
 
+    // r0 is a reserved register that is always mapped to rbp.
+    reg_map_set(0, 0);
+    used_set(0, true);
+
+    let irv_len = irv.len();
     if irv_len > INIT_ARRAY_SIZE {
         unsafe {
             REG_MAP.lock().unwrap().set_len(irv_len);

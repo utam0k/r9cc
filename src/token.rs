@@ -61,7 +61,6 @@ pub fn scan(mut p: String) -> Vec<Token> {
     // Tokenized input is stored to this vec.
     let mut tokens: Vec<Token> = vec![];
 
-    let org = p.clone();
     while let Some(c) = p.chars().nth(0) {
         // Skip whitespce
         if c.is_whitespace() {
@@ -74,7 +73,7 @@ pub fn scan(mut p: String) -> Vec<Token> {
             '+' | '-' | '*' | '/' | ';' | '=' | '(' | ')' | ',' | '{' | '}' => {
                 let token = Token {
                     ty: TokenType::from(c),
-                    input: org.clone(),
+                    input: p.clone(),
                 };
                 p = p.split_off(1); // p++
                 tokens.push(token);
@@ -96,7 +95,7 @@ pub fn scan(mut p: String) -> Vec<Token> {
             }
             let token = Token {
                 ty: TokenType::from(name),
-                input: org.clone(),
+                input: p.clone(),
             };
             tokens.push(token);
             continue;
@@ -107,7 +106,7 @@ pub fn scan(mut p: String) -> Vec<Token> {
             let n = strtol(&mut p);
             let token = Token {
                 ty: TokenType::Num(n.unwrap() as i32),
-                input: org.clone(),
+                input: p.clone(),
             };
             tokens.push(token);
             continue;

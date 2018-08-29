@@ -14,13 +14,13 @@ lazy_static!{
     static ref REGNO: Mutex<usize> = Mutex::new(1);
     static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
     static ref LABEL: Mutex<usize> = Mutex::new(0);
-    static ref IRINFO: [IRInfo; 16] = [
+    static ref IRINFO: [IRInfo; 17] = [
         IRInfo::new(IROp::Add, "ADD", IRType::RegReg),
         IRInfo::new(IROp::Sub, "SUB", IRType::RegReg),
         IRInfo::new(IROp::Mul, "MUL", IRType::RegReg),
         IRInfo::new(IROp::Div, "DIV", IRType::RegReg),
         IRInfo::new(IROp::Imm, "MOV", IRType::RegImm),
-        IRInfo::new(IROp::AddImm, "ADD", IRType::RegImm),
+        IRInfo::new(IROp::SubImm, "SUB", IRType::RegImm),
         IRInfo::new(IROp::Mov, "MOV", IRType::RegReg),
         IRInfo::new(IROp::Label, "", IRType::Label),
         IRInfo::new(IROp::Jmp, "", IRType::Label),
@@ -30,6 +30,7 @@ lazy_static!{
         IRInfo::new(IROp::Load, "LOAD", IRType::RegReg),
         IRInfo::new(IROp::Store, "STORE", IRType::RegReg),
         IRInfo::new(IROp::Kill, "KILL", IRType::Reg),
+        IRInfo::new(IROp::SaveArgs, "SAVE_ARGS", IRType::Imm),
         IRInfo::new(IROp::Nop, "NOP", IRType::Noarg),
     ];
 }
@@ -38,6 +39,7 @@ lazy_static!{
 pub enum IRType {
     Noarg,
     Reg,
+    Imm,
     Label,
     RegReg,
     RegImm,
@@ -70,6 +72,7 @@ impl fmt::Display for IR {
         let lhs = self.lhs.unwrap();
         match info.ty {
             Label => write!(f, ".L{}=>\n", lhs),
+            Imm => write!(f, "{} {}\n", info.name, lhs),
             Reg => write!(f, "{} r{}\n", info.name, lhs),
             RegReg => write!(f, "{} r{}, r{}\n", info.name, lhs, self.rhs.unwrap()),
             RegImm => write!(f, "{} r{}, {}\n", info.name, lhs, self.rhs.unwrap()),
@@ -140,7 +143,7 @@ pub enum IROp {
     Imm,
     Mov,
     Add,
-    AddImm,
+    SubImm,
     Sub,
     Mul,
     Div,
@@ -152,6 +155,7 @@ pub enum IROp {
     Load,
     Store,
     Kill,
+    SaveArgs,
     Nop,
 }
 
@@ -207,7 +211,7 @@ fn gen_lval(code: &mut Vec<IR>, node: Node) -> Option<usize> {
             *REGNO.lock().unwrap() += 1;
             let off = *VARS.lock().unwrap().get(&name).unwrap();
             code.push(IR::new(IROp::Mov, r, Some(0)));
-            code.push(IR::new(IROp::AddImm, r, Some(-(off as i32) as usize)));
+            code.push(IR::new(IROp::SubImm, r, Some(off)));
             return r;
         }
         _ => panic!("not an lvalue"),
@@ -307,17 +311,39 @@ fn gen_stmt(code: &mut Vec<IR>, node: Node) {
     }
 }
 
+fn gen_args(code: &mut Vec<IR>, nodes: Vec<Node>) {
+    if nodes.len() == 0 {
+        return;
+    }
+
+    code.push(IR::new(IROp::SaveArgs, Some(nodes.len()), None));
+
+    for node in nodes {
+        match node.ty {
+            NodeType::Ident(name) => {
+                *STACKSIZE.lock().unwrap() += 8;
+                VARS.lock().unwrap().insert(
+                    name.clone(),
+                    *STACKSIZE.lock().unwrap(),
+                );
+            }
+            _ => panic!("bad parameter"),
+        }
+    }
+}
+
 pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
     let mut v = vec![];
     for node in nodes {
         match node.ty {
-            NodeType::Func(name, _, body) => {
+            NodeType::Func(name, args, body) => {
                 let mut code = vec![];
                 *VARS.lock().unwrap() = HashMap::new();
 
                 *REGNO.lock().unwrap() = 1;
-                *STACKSIZE.lock().unwrap() = 8;
+                *STACKSIZE.lock().unwrap() = 0;
 
+                gen_args(&mut code, args);
                 gen_stmt(&mut code, *body);
 
                 v.push(Function::new(name, code, *STACKSIZE.lock().unwrap()));

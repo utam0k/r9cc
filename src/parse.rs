@@ -173,9 +173,14 @@ impl Node {
 
                 let mut args = vec![];
                 expect(&tokens[*pos], TokenType::LeftParen, pos);
-                while !consume(tokens, TokenType::RightParen, pos) {
+                if !consume(tokens, TokenType::RightParen, pos) {
                     args.push(Self::term(tokens, pos));
+                    while consume(tokens, TokenType::Colon, pos) {
+                        args.push(Self::term(tokens, pos));
+                    }
+                    expect(&tokens[*pos], TokenType::RightParen, pos);
                 }
+
                 expect(&tokens[*pos], TokenType::LeftBrace, pos);
                 let body = Self::compound_stmt(tokens, pos);
                 Node::new(NodeType::Func(name, args, Box::new(body)))

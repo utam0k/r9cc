@@ -3,6 +3,8 @@ use REGS;
 
 use std::sync::Mutex;
 
+const ARGREG: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+
 lazy_static! {
     static ref LABEL: Mutex<usize> = Mutex::new(0);
 }
@@ -33,9 +35,8 @@ fn gen(f: Function) {
                 print!("  jmp {}\n", ret);
             }
             Call(name, nargs, args) => {
-                let arg = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
                 for i in 0..nargs {
-                    print!("  mov {}, {}\n", arg[i], REGS[args[i]]);
+                    print!("  mov {}, {}\n", ARGREG[i], REGS[args[i]]);
                 }
                 print!("  push r10\n");
                 print!("  push r11\n");
@@ -54,9 +55,14 @@ fn gen(f: Function) {
             }
             Load => print!("  mov {}, [{}]\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             Store => print!("  mov [{}], {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            SaveArgs => {
+                for i in 0..lhs {
+                    print!("  mov [rbp-{}], {}\n", (i + 1) * 8, ARGREG[i]);
+                }
+            }
             Add => print!("  add {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            AddImm => print!("  add {}, {}\n", REGS[lhs], ir.rhs.unwrap() as i32),
             Sub => print!("  sub {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            SubImm => print!("  sub {}, {}\n", REGS[lhs], ir.rhs.unwrap()),
             Mul => {
                 print!("  mov rax, {}\n", REGS[ir.rhs.unwrap()]);
                 print!("  mul {}\n", REGS[lhs]);

@@ -139,13 +139,13 @@ impl Function {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IROp {
-    Imm,
-    Mov,
     Add,
-    SubImm,
     Sub,
     Mul,
     Div,
+    Imm,
+    SubImm,
+    Mov,
     Return,
     Call(String, usize, [usize; 6]),
     Label,

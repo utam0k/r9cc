@@ -122,7 +122,6 @@ pub fn get_irinfo(ir: &IR) -> IRInfo {
 #[derive(Clone, Debug)]
 pub struct Function {
     pub name: String,
-    // args: [usize; 6],
     pub ir: Vec<IR>,
     pub stacksize: usize,
 }

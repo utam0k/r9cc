@@ -1,4 +1,4 @@
-use ir::{IROp, IR, IRType, Function, IRInfo};
+use gen_ir::{IROp, IR, IRType, Function, IRInfo};
 use REGS_N;
 
 use std::sync::Mutex;

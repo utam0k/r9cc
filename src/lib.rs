@@ -1,5 +1,5 @@
-pub mod codegen;
-pub mod ir;
+pub mod gen_x86;
+pub mod gen_ir;
 pub mod parse;
 pub mod regalloc;
 pub mod token;

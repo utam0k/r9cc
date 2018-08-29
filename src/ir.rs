@@ -14,25 +14,6 @@ lazy_static!{
     static ref REGNO: Mutex<usize> = Mutex::new(1);
     static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
     static ref LABEL: Mutex<usize> = Mutex::new(0);
-    static ref IRINFO: [IRInfo; 17] = [
-        IRInfo::new(IROp::Add, "ADD", IRType::RegReg),
-        IRInfo::new(IROp::Sub, "SUB", IRType::RegReg),
-        IRInfo::new(IROp::Mul, "MUL", IRType::RegReg),
-        IRInfo::new(IROp::Div, "DIV", IRType::RegReg),
-        IRInfo::new(IROp::Imm, "MOV", IRType::RegImm),
-        IRInfo::new(IROp::SubImm, "SUB", IRType::RegImm),
-        IRInfo::new(IROp::Mov, "MOV", IRType::RegReg),
-        IRInfo::new(IROp::Label, "", IRType::Label),
-        IRInfo::new(IROp::Jmp, "", IRType::Label),
-        IRInfo::new(IROp::Unless, "UNLESS", IRType::RegLabel),
-        IRInfo::new(IROp::Call(String::new(), 0, [0; 6]), "CALL", IRType::Call),
-        IRInfo::new(IROp::Return, "RET", IRType::Reg),
-        IRInfo::new(IROp::Load, "LOAD", IRType::RegReg),
-        IRInfo::new(IROp::Store, "STORE", IRType::RegReg),
-        IRInfo::new(IROp::Kill, "KILL", IRType::Reg),
-        IRInfo::new(IROp::SaveArgs, "SAVE_ARGS", IRType::Imm),
-        IRInfo::new(IROp::Nop, "NOP", IRType::Noarg),
-    ];
 }
 
 #[derive(Clone, Debug)]
@@ -49,48 +30,13 @@ pub enum IRType {
 
 #[derive(Clone, Debug)]
 pub struct IRInfo {
-    op: IROp,
     name: &'static str,
     pub ty: IRType,
 }
 
 impl IRInfo {
-    pub fn new(op: IROp, name: &'static str, ty: IRType) -> Self {
-        IRInfo {
-            op: op,
-            name: name,
-            ty: ty,
-        }
-    }
-}
-
-impl fmt::Display for IR {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::IRType::*;
-
-        let info = get_irinfo(self);
-        let lhs = self.lhs.unwrap();
-        match info.ty {
-            Label => write!(f, ".L{}=>\n", lhs),
-            Imm => write!(f, "{} {}\n", info.name, lhs),
-            Reg => write!(f, "{} r{}\n", info.name, lhs),
-            RegReg => write!(f, "{} r{}, r{}\n", info.name, lhs, self.rhs.unwrap()),
-            RegImm => write!(f, "{} r{}, {}\n", info.name, lhs, self.rhs.unwrap()),
-            RegLabel => write!(f, "{} r{}, .L{}\n", info.name, lhs, self.rhs.unwrap()),
-            Call => {
-                match self.op {
-                    IROp::Call(ref name, nargs, args) => {
-                        let mut sb: String = format!(", r{} = {}(", lhs, name);
-                        for i in 0..nargs {
-                            sb.push_str(&format!(", r{}", args[i]));
-                        }
-                        write!(f, "{}", sb)
-                    }
-                    _ => unreachable!(),
-                }
-            }
-            Noarg => write!(f, "{}\n", info.name),
-        }
+    pub fn new(name: &'static str, ty: IRType) -> Self {
+        IRInfo { name: name, ty: ty }
     }
 }
 
@@ -101,22 +47,6 @@ pub fn dump_ir(fns: &Vec<Function>) {
             print!("  {}", ir);
         }
     }
-}
-
-pub fn get_irinfo(ir: &IR) -> IRInfo {
-    for info in IRINFO.iter() {
-        match ir.op {
-            IROp::Call(ref name, nargs, args) => {
-                return IRInfo::new(IROp::Call(name.clone(), nargs, args), "CALL", IRType::Call)
-            }
-            _ => {
-                if info.op == ir.op {
-                    return info.clone();
-                }
-            }
-        }
-    }
-    panic!("invalid instruction")
 }
 
 #[derive(Clone, Debug)]
@@ -130,7 +60,6 @@ impl Function {
     fn new(name: String, ir: Vec<IR>, stacksize: usize) -> Self {
         Function {
             name: name,
-            // args: args,
             ir: ir,
             stacksize: stacksize,
         }
@@ -156,6 +85,62 @@ pub enum IROp {
     Kill,
     SaveArgs,
     Nop,
+}
+
+impl<'a> From<&'a IROp> for IRInfo {
+    fn from(op: &'a IROp) -> IRInfo {
+        use self::IROp::*;
+        match op {
+            Add => IRInfo::new("ADD", IRType::RegReg),
+            Sub => IRInfo::new("SUB", IRType::RegReg),
+            Mul => IRInfo::new("MUL", IRType::RegReg),
+            Div => IRInfo::new("DIV", IRType::RegReg),
+            Imm => IRInfo::new("MOV", IRType::RegImm),
+            SubImm => IRInfo::new("SUB", IRType::RegImm),
+            Mov => IRInfo::new("MOV", IRType::RegReg),
+            Return => IRInfo::new("RET", IRType::Reg),
+            Call(_, _, _) => IRInfo::new("CALL", IRType::Call),
+            Label => IRInfo::new("", IRType::Label),
+            Jmp => IRInfo::new("JMP", IRType::Label),
+            Unless => IRInfo::new("UNLESS", IRType::RegLabel),
+            Load => IRInfo::new("LOAD", IRType::RegReg),
+            Store => IRInfo::new("STORE", IRType::RegReg),
+            Kill => IRInfo::new("KILL", IRType::Reg),
+            SaveArgs => IRInfo::new("SAVE_ARGS", IRType::Imm),
+            Nop => IRInfo::new("NOP", IRType::Noarg),
+        }
+    }
+}
+
+impl fmt::Display for IR {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::IRType::*;
+
+        let info = &IRInfo::from(&self.op);
+
+        let lhs = self.lhs.unwrap();
+        match info.ty {
+            Label => write!(f, ".L{}=>\n", lhs),
+            Imm => write!(f, "{} {}\n", info.name, lhs),
+            Reg => write!(f, "{} r{}\n", info.name, lhs),
+            RegReg => write!(f, "{} r{}, r{}\n", info.name, lhs, self.rhs.unwrap()),
+            RegImm => write!(f, "{} r{}, {}\n", info.name, lhs, self.rhs.unwrap()),
+            RegLabel => write!(f, "{} r{}, .L{}\n", info.name, lhs, self.rhs.unwrap()),
+            Call => {
+                match self.op {
+                    IROp::Call(ref name, nargs, args) => {
+                        let mut sb: String = format!(", r{} = {}(", lhs, name);
+                        for i in 0..nargs {
+                            sb.push_str(&format!(", r{}", args[i]));
+                        }
+                        write!(f, "{}", sb)
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Noarg => write!(f, "{}\n", info.name),
+        }
+    }
 }
 
 impl From<NodeType> for IROp {

@@ -1,4 +1,4 @@
-use ir::{IROp, IR, get_irinfo, IRType, Function};
+use ir::{IROp, IR, IRType, Function, IRInfo};
 use REGS_N;
 
 use std::sync::Mutex;
@@ -65,7 +65,7 @@ fn visit(irv: &mut Vec<IR>) {
 
     for i in 0..irv_len {
         let mut ir = irv[i].clone();
-        let info = get_irinfo(&ir);
+        let info = &IRInfo::from(&ir.op);
 
         match info.ty {
             Reg | RegImm | RegLabel => ir.lhs = Some(alloc(ir.lhs.unwrap())),

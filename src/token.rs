@@ -14,6 +14,8 @@ pub enum TokenType {
     RightParen, // )
     LeftBrace, // {
     RightBrace, // {
+    LeftAngleBracket, // <
+    RightAngleBracket, // >
     Equal, // =
     Logor, // ||
     Logand, // &&
@@ -35,6 +37,8 @@ impl From<char> for TokenType {
             ')' => RightParen,
             '{' => LeftBrace,
             '}' => RightBrace,
+            '<' => LeftAngleBracket,
+            '>' => RightAngleBracket,
             ',' => Colon,
             e => panic!("unknow Token type: {}", e),
         }
@@ -91,7 +95,7 @@ pub fn scan(mut p: String) -> Vec<Token> {
 
         // Single-letter token
         match c {
-            '+' | '-' | '*' | '/' | ';' | '=' | '(' | ')' | ',' | '{' | '}' => {
+            '+' | '-' | '*' | '/' | ';' | '=' | '(' | ')' | ',' | '{' | '}' | '<' | '>' => {
                 let token = Token {
                     ty: TokenType::from(c),
                     input: p.clone(),

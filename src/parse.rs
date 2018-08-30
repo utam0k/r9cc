@@ -117,8 +117,36 @@ impl Node {
         }
     }
 
-    fn logand(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+    fn rel(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         let mut lhs = Self::add(tokens, pos);
+        loop {
+            let t = &tokens[*pos];
+            if t.ty == TokenType::LeftAngleBracket {
+                *pos += 1;
+                lhs = Self::new(NodeType::BinOp(
+                    TokenType::LeftAngleBracket,
+                    Box::new(lhs),
+                    Box::new(Self::add(tokens, pos)),
+                ));
+                continue;
+            }
+
+            if t.ty == TokenType::RightAngleBracket {
+                *pos += 1;
+                lhs = Self::new(NodeType::BinOp(
+                    TokenType::LeftAngleBracket,
+                    Box::new(Self::add(tokens, pos)),
+                    Box::new(lhs),
+                ));
+                continue;
+            }
+
+            return lhs;
+        }
+    }
+
+    fn logand(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let mut lhs = Self::rel(tokens, pos);
         loop {
             if tokens[*pos].ty != TokenType::Logand {
                 return lhs;
@@ -126,7 +154,7 @@ impl Node {
             *pos += 1;
             lhs = Self::new(NodeType::Logand(
                 Box::new(lhs),
-                Box::new(Self::add(tokens, pos)),
+                Box::new(Self::rel(tokens, pos)),
             ));
         }
     }

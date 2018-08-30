@@ -79,6 +79,7 @@ pub enum IROp {
     Return,
     Call(String, usize, [usize; 6]),
     Label,
+    LT,
     Jmp,
     Unless,
     Load,
@@ -102,6 +103,7 @@ impl<'a> From<&'a IROp> for IRInfo {
             Return => IRInfo::new("RET", IRType::Reg),
             Call(_, _, _) => IRInfo::new("CALL", IRType::Call),
             Label => IRInfo::new("", IRType::Label),
+            LT => IRInfo::new("LT", IRType::RegReg),
             Jmp => IRInfo::new("JMP", IRType::Jmp),
             Unless => IRInfo::new("UNLESS", IRType::RegLabel),
             Load => IRInfo::new("LOAD", IRType::RegReg),
@@ -162,6 +164,8 @@ impl From<TokenType> for IROp {
             TokenType::Minus => IROp::Sub,
             TokenType::Mul => IROp::Mul,
             TokenType::Div => IROp::Div,
+            TokenType::LeftAngleBracket |
+            TokenType::RightAngleBracket => IROp::LT,
             e => panic!("cannot convert: {:?}", e),
         }
     }
@@ -278,6 +282,7 @@ fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
                     return lhs;
                 }
                 _ => {
+                    // gen_binop
                     let lhs = gen_expr(code, *lhs);
                     let rhs = gen_expr(code, *rhs);
 

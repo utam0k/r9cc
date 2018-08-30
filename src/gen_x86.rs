@@ -1,5 +1,6 @@
 use gen_ir::{IROp, Function};
 use REGS;
+use REGS8;
 
 use std::sync::Mutex;
 
@@ -48,6 +49,11 @@ fn gen(f: Function) {
                 print!("  mov {}, rax\n", REGS[lhs]);
             }
             Label => print!(".L{}:\n", lhs),
+            LT => {
+                print!("  cmp {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]);
+                print!("  setl {}\n", REGS8[lhs]);
+                print!("  movzb {}, {}\n", REGS[lhs], REGS8[ir.lhs.unwrap()]);
+            }
             Jmp => print!("  jmp .L{}\n", lhs),
             Unless => {
                 print!("  cmp {}, 0\n", REGS[lhs]);

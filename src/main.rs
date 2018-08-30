@@ -10,6 +10,7 @@ use std::env;
 fn main() {
     let args: Vec<String> = env::args().collect();
     let input: String;
+    let mut dump_tokens = false;
     let mut dump_ir1 = false;
     let mut dump_ir2 = false;
 
@@ -18,6 +19,9 @@ fn main() {
         input = args[2].clone();
     } else if args.len() == 3 && args[1] == "-dump-ir2" {
         dump_ir2 = true;
+        input = args[2].clone();
+    } else if args.len() == 3 && args[1] == "-dump-tokens" {
+        dump_tokens = true;
         input = args[2].clone();
     } else {
         if args.len() != 2 {
@@ -29,6 +33,11 @@ fn main() {
 
     // Tokenize and parse.
     let tokens = tokenize(input);
+
+    if dump_tokens {
+        println!("tokens: {:?}", tokens);
+    }
+
     let mut fns = gen_ir(Node::parse(&tokens));
 
     if dump_ir1 {

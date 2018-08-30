@@ -44,11 +44,6 @@ fn alloc(ir_reg: usize) -> usize {
     panic!("register exhauseted");
 }
 
-fn kill(r: usize) {
-    assert!(used_get(r));
-    used_set(r, false);
-}
-
 fn visit(irv: &mut Vec<IR>) {
     use self::IRType::*;
 
@@ -90,7 +85,9 @@ fn visit(irv: &mut Vec<IR>) {
         }
 
         if ir.op == IROp::Kill {
-            kill(ir.lhs.unwrap());
+            let lhs = ir.lhs.unwrap();
+            assert!(used_get(lhs));
+            used_set(lhs, false);
             ir.op = IROp::Nop;
         }
         irv[i] = ir;

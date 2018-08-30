@@ -218,6 +218,14 @@ impl Node {
                 expect(&tokens[*pos], TokenType::Semicolon, pos);
                 Self::new(NodeType::Return(Box::new(expr)))
             }
+            TokenType::LeftBrace => {
+                *pos += 1;
+                let mut stmts = vec![];
+                while !consume(tokens, TokenType::RightBrace, pos) {
+                    stmts.push(Self::stmt(&tokens, pos));
+                }
+                Self::new(NodeType::CompStmt(stmts))
+            }
             _ => {
                 let expr = Self::assign(&tokens, pos);
                 let node = Self::new(NodeType::ExprStmt(Box::new(expr)));

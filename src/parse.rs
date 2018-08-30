@@ -22,11 +22,15 @@ fn consume(tokens: &Vec<Token>, ty: TokenType, pos: &mut usize) -> bool {
     return true;
 }
 
+fn is_typename(t: &Token) -> bool {
+    t.ty == TokenType::Int
+}
+
 #[derive(Debug, Clone)]
 pub enum NodeType {
     Num(i32), // Number literal
     Ident(String), // Identifier
-    Vardef(String, Option<Box<Node>>), // Variable definition, init
+    Vardef(String, Option<Box<Node>>), // Variable definition, name = init
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
     For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
@@ -187,27 +191,35 @@ impl Node {
         return lhs;
     }
 
+    fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        *pos += 1;
+
+        let t = &tokens[*pos];
+        if let TokenType::Ident(ref name) = t.ty {
+            *pos += 1;
+
+            let init: Option<Box<Node>>;
+            if consume(tokens, TokenType::Equal, pos) {
+                init = Some(Box::new(Self::assign(tokens, pos)));
+            } else {
+                init = None
+            }
+            expect(&tokens[*pos], TokenType::Semicolon, pos);
+            return Node::new(NodeType::Vardef(name.clone(), init));
+        } else {
+            panic!("variable name expected, but got {}", t.input);
+        }
+    }
+
+    fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let expr = Self::assign(tokens, pos);
+        expect(&tokens[*pos], TokenType::Semicolon, pos);
+        Node::new(NodeType::ExprStmt(Box::new(expr)))
+    }
+
     fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         match tokens[*pos].ty {
-            TokenType::Int => {
-                *pos += 1;
-
-                let t = &tokens[*pos];
-                if let TokenType::Ident(ref name) = t.ty {
-                    *pos += 1;
-
-                    let init: Option<Box<Node>>;
-                    if consume(tokens, TokenType::Equal, pos) {
-                        init = Some(Box::new(Self::assign(tokens, pos)));
-                    } else {
-                        init = None
-                    }
-                    expect(&tokens[*pos], TokenType::Semicolon, pos);
-                    return Node::new(NodeType::Vardef(name.clone(), init));
-                } else {
-                    panic!("variable name expected, but got {}", t.input);
-                };
-            }
+            TokenType::Int => return Self::decl(tokens, pos),
             TokenType::If => {
                 let mut els = None;
                 *pos += 1;
@@ -223,8 +235,12 @@ impl Node {
             TokenType::For => {
                 *pos += 1;
                 expect(&tokens[*pos], TokenType::LeftParen, pos);
-                let init = Box::new(Self::assign(&tokens, pos));
-                expect(&tokens[*pos], TokenType::Semicolon, pos);
+                let init: Box<Node>;
+                if is_typename(&tokens[*pos]) {
+                    init = Box::new(Self::decl(tokens, pos));
+                } else {
+                    init = Box::new(Self::expr_stmt(tokens, pos));
+                }
                 let cond = Box::new(Self::assign(&tokens, pos));
                 expect(&tokens[*pos], TokenType::Semicolon, pos);
                 let inc = Box::new(Self::assign(&tokens, pos));

@@ -339,8 +339,7 @@ fn gen_stmt(code: &mut Vec<IR>, node: Node) {
             let y = Some(*LABEL.lock().unwrap());
             *LABEL.lock().unwrap() += 1;
 
-            let r1 = gen_expr(code, *init);
-            code.push(IR::new(IROp::Kill, r1, None));
+            gen_stmt(code, *init);
             code.push(IR::new(IROp::Label, x, None));
             let r2 = gen_expr(code, *cond);
             code.push(IR::new(IROp::Unless, r2, y));

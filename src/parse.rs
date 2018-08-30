@@ -28,6 +28,8 @@ pub enum NodeType {
     Ident(String), // Identifier
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // cond, then, els
+    Logand(Box<Node>, Box<Node>), // left-hand, right-hand
+    Logor(Box<Node>, Box<Node>), // left-hand, right-hand
     Return(Box<Node>), // stmt
     Call(String, Vec<Node>), // Function call(name, args)
     Func(String, Vec<Node>, Box<Node>), // Function definition(name, args, body)
@@ -84,20 +86,20 @@ impl Node {
                 return lhs;
             }
 
-            let op = tokens[*pos].ty.clone();
-            if op != TokenType::Mul && op != TokenType::Div {
+            let t = &tokens[*pos];
+            if t.ty != TokenType::Mul && t.ty != TokenType::Div {
                 return lhs;
             }
             *pos += 1;
             lhs = Self::new(NodeType::BinOp(
-                op,
+                t.ty.clone(),
                 Box::new(lhs),
                 Box::new(Self::term(&tokens, pos)),
             ));
         }
     }
 
-    fn expr(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+    fn add(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         let mut lhs = Self::mul(&tokens, pos);
 
         loop {
@@ -105,23 +107,51 @@ impl Node {
                 return lhs;
             }
 
-            let op = tokens[*pos].ty.clone();
-            if op != TokenType::Plus && op != TokenType::Minus {
+            let t = &tokens[*pos];
+            if t.ty != TokenType::Plus && t.ty != TokenType::Minus {
                 return lhs;
             }
             *pos += 1;
             let rhs = Self::mul(&tokens, pos);
-            lhs = Self::new(NodeType::BinOp(op, Box::new(lhs), Box::new(rhs)));
+            lhs = Self::new(NodeType::BinOp(t.ty.clone(), Box::new(lhs), Box::new(rhs)));
+        }
+    }
+
+    fn logand(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let mut lhs = Self::add(tokens, pos);
+        loop {
+            if tokens[*pos].ty != TokenType::Logand {
+                return lhs;
+            }
+            *pos += 1;
+            lhs = Self::new(NodeType::Logand(
+                Box::new(lhs),
+                Box::new(Self::add(tokens, pos)),
+            ));
+        }
+    }
+
+    fn logor(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let mut lhs = Self::logand(tokens, pos);
+        loop {
+            if tokens[*pos].ty != TokenType::Logor {
+                return lhs;
+            }
+            *pos += 1;
+            lhs = Self::new(NodeType::Logor(
+                Box::new(lhs),
+                Box::new(Self::logand(tokens, pos)),
+            ));
         }
     }
 
     fn assign(tokens: &Vec<Token>, pos: &mut usize) -> Self {
-        let lhs = Self::expr(tokens, pos);
+        let lhs = Self::logor(tokens, pos);
         if consume(tokens, TokenType::Equal, pos) {
             return Self::new(NodeType::BinOp(
                 TokenType::Equal,
                 Box::new(lhs),
-                Box::new(Self::expr(tokens, pos)),
+                Box::new(Self::logor(tokens, pos)),
             ));
         }
         return lhs;

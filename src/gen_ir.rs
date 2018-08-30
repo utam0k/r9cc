@@ -21,6 +21,7 @@ pub enum IRType {
     Noarg,
     Reg,
     Imm,
+    Jmp,
     Label,
     RegReg,
     RegImm,
@@ -44,7 +45,7 @@ pub fn dump_ir(fns: &Vec<Function>) {
     for f in fns {
         print!("{}(): \n", f.name);
         for ir in &f.ir {
-            print!("  {}", ir);
+            print!("{}\n", ir);
         }
     }
 }
@@ -101,7 +102,7 @@ impl<'a> From<&'a IROp> for IRInfo {
             Return => IRInfo::new("RET", IRType::Reg),
             Call(_, _, _) => IRInfo::new("CALL", IRType::Call),
             Label => IRInfo::new("", IRType::Label),
-            Jmp => IRInfo::new("JMP", IRType::Label),
+            Jmp => IRInfo::new("JMP", IRType::Jmp),
             Unless => IRInfo::new("UNLESS", IRType::RegLabel),
             Load => IRInfo::new("LOAD", IRType::RegReg),
             Store => IRInfo::new("STORE", IRType::RegReg),
@@ -120,25 +121,27 @@ impl fmt::Display for IR {
 
         let lhs = self.lhs.unwrap();
         match info.ty {
-            Label => write!(f, ".L{}=>\n", lhs),
-            Imm => write!(f, "{} {}\n", info.name, lhs),
-            Reg => write!(f, "{} r{}\n", info.name, lhs),
-            RegReg => write!(f, "{} r{}, r{}\n", info.name, lhs, self.rhs.unwrap()),
-            RegImm => write!(f, "{} r{}, {}\n", info.name, lhs, self.rhs.unwrap()),
-            RegLabel => write!(f, "{} r{}, .L{}\n", info.name, lhs, self.rhs.unwrap()),
+            Label => write!(f, ".L{}=>", lhs),
+            Imm => write!(f, "  {} {}", info.name, lhs),
+            Reg => write!(f, "  {} r{}", info.name, lhs),
+            Jmp => write!(f, "  {} .L{}", info.name, lhs),
+            RegReg => write!(f, "  {} r{}, r{}", info.name, lhs, self.rhs.unwrap()),
+            RegImm => write!(f, "  {} r{}, {}", info.name, lhs, self.rhs.unwrap()),
+            RegLabel => write!(f, "  {} r{}, .L{}", info.name, lhs, self.rhs.unwrap()),
             Call => {
                 match self.op {
                     IROp::Call(ref name, nargs, args) => {
-                        let mut sb: String = format!(", r{} = {}(", lhs, name);
+                        let mut sb: String = format!("  r{} = {}(", lhs, name);
                         for i in 0..nargs {
                             sb.push_str(&format!(", r{}", args[i]));
                         }
+                        sb.push_str(")");
                         write!(f, "{}", sb)
                     }
                     _ => unreachable!(),
                 }
             }
-            Noarg => write!(f, "{}\n", info.name),
+            Noarg => write!(f, "  {}", info.name),
         }
     }
 }
@@ -209,6 +212,40 @@ fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
             *REGNO.lock().unwrap() += 1;
             code.push(IR::new(IROp::Imm, r, Some(val as usize)));
             return r;
+        }
+        NodeType::Logand(lhs, rhs) => {
+            let x = Some(*LABEL.lock().unwrap());
+            *LABEL.lock().unwrap() += 1;
+
+            let r1 = gen_expr(code, *lhs);
+            code.push(IR::new(IROp::Unless, r1, x));
+            let r2 = gen_expr(code, *rhs);
+            code.push(IR::new(IROp::Mov, r1, r2));
+            code.push(IR::new(IROp::Kill, r2, None));
+            code.push(IR::new(IROp::Unless, r1, x));
+            code.push(IR::new(IROp::Imm, r1, Some(1)));
+            code.push(IR::new(IROp::Label, x, None));
+            return r1;
+        }
+        NodeType::Logor(lhs, rhs) => {
+            let x = Some(*LABEL.lock().unwrap());
+            *LABEL.lock().unwrap() += 1;
+            let y = Some(*LABEL.lock().unwrap());
+            *LABEL.lock().unwrap() += 1;
+
+            let r1 = gen_expr(code, *lhs);
+            code.push(IR::new(IROp::Unless, r1, x));
+            code.push(IR::new(IROp::Imm, r1, Some(1)));
+            code.push(IR::new(IROp::Jmp, y, None));
+            code.push(IR::new(IROp::Label, x, None));
+
+            let r2 = gen_expr(code, *rhs);
+            code.push(IR::new(IROp::Mov, r1, r2));
+            code.push(IR::new(IROp::Kill, r2, None));
+            code.push(IR::new(IROp::Unless, r1, y));
+            code.push(IR::new(IROp::Imm, r1, Some(1)));
+            code.push(IR::new(IROp::Label, y, None));
+            return r1;
         }
         NodeType::Ident(_) => {
             let r = gen_lval(code, node);

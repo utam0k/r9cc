@@ -9,13 +9,15 @@ pub enum TokenType {
     Div, // /
     If, // "if"
     Else, // "else"
-    Return, // "return"
     Semicolon, // ;
     LeftParen, // (
     RightParen, // )
     LeftBrace, // {
     RightBrace, // {
     Equal, // =
+    Logor, // ||
+    Logand, // &&
+    Return, // "return"
     Colon, // ,
 }
 
@@ -37,6 +39,25 @@ impl From<char> for TokenType {
             e => panic!("unknow Token type: {}", e),
         }
     }
+}
+
+#[derive(Debug)]
+pub struct Symbol {
+    pub name: &'static str,
+    pub ty: TokenType,
+}
+
+impl Symbol {
+    fn new(name: &'static str, ty: TokenType) -> Self {
+        Symbol { name: name, ty: ty }
+    }
+}
+
+lazy_static! {
+    static ref SYMBOLS: [Symbol; 2] = [
+        Symbol::new("&&", TokenType::Logand),
+        Symbol::new("||", TokenType::Logor),
+    ];
 }
 
 impl From<String> for TokenType {
@@ -61,7 +82,7 @@ pub fn scan(mut p: String) -> Vec<Token> {
     // Tokenized input is stored to this vec.
     let mut tokens: Vec<Token> = vec![];
 
-    while let Some(c) = p.chars().nth(0) {
+    'outer: while let Some(c) = p.chars().nth(0) {
         // Skip whitespce
         if c.is_whitespace() {
             p = p.split_off(1); // p++
@@ -80,6 +101,24 @@ pub fn scan(mut p: String) -> Vec<Token> {
                 continue;
             }
             _ => (),
+        }
+
+        // Multi-letter token
+        for symbol in SYMBOLS.iter() {
+            let name = symbol.name;
+            let len = name.len();
+            let p_c = p.clone();
+            let (first, _last) = p_c.split_at(len);
+            if name != first {
+                continue;
+            }
+
+            tokens.push(Token {
+                ty: symbol.ty.clone(),
+                input: p.clone(),
+            });
+            p = p.split_off(len); // p += len
+            continue 'outer;
         }
 
         // Identifier

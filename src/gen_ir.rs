@@ -294,12 +294,22 @@ fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
 
 fn gen_stmt(code: &mut Vec<IR>, node: Node) {
     match node.ty {
-        NodeType::Vardef(name) => {
+        NodeType::Vardef(name, init_may) => {
+            *STACKSIZE.lock().unwrap() += 8;
             VARS.lock().unwrap().insert(
                 name.clone(),
                 *STACKSIZE.lock().unwrap(),
             );
-            *STACKSIZE.lock().unwrap() += 8;
+            if let Some(init) = init_may {
+                let rhs = gen_expr(code, *init);
+                let lhs = Some(*REGNO.lock().unwrap());
+                *REGNO.lock().unwrap() += 1;
+                code.push(IR::new(IROp::Mov, lhs, Some(0)));
+                code.push(IR::new(IROp::SubImm, lhs, Some(*STACKSIZE.lock().unwrap())));
+                code.push(IR::new(IROp::Store, lhs, rhs));
+                code.push(IR::new(IROp::Kill, lhs, None));
+                code.push(IR::new(IROp::Kill, rhs, None));
+            }
             return;
         }
         NodeType::If(cond, then, els_may) => {

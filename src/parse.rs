@@ -26,7 +26,7 @@ fn consume(tokens: &Vec<Token>, ty: TokenType, pos: &mut usize) -> bool {
 pub enum NodeType {
     Num(i32), // Number literal
     Ident(String), // Identifier
-    Vardef(String), // Variable definition
+    Vardef(String, Option<Box<Node>>), // Variable definition, init
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
     For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
@@ -195,8 +195,15 @@ impl Node {
                 let t = &tokens[*pos];
                 if let TokenType::Ident(ref name) = t.ty {
                     *pos += 1;
+
+                    let init: Option<Box<Node>>;
+                    if consume(tokens, TokenType::Equal, pos) {
+                        init = Some(Box::new(Self::assign(tokens, pos)));
+                    } else {
+                        init = None
+                    }
                     expect(&tokens[*pos], TokenType::Semicolon, pos);
-                    return Node::new(NodeType::Vardef(name.clone()));
+                    return Node::new(NodeType::Vardef(name.clone(), init));
                 } else {
                     panic!("variable name expected, but got {}", t.input);
                 };

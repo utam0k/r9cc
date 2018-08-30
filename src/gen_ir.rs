@@ -192,11 +192,7 @@ fn gen_lval(code: &mut Vec<IR>, node: Node) -> Option<usize> {
     match node.ty {
         NodeType::Ident(name) => {
             if VARS.lock().unwrap().get(&name).is_none() {
-                VARS.lock().unwrap().insert(
-                    name.clone(),
-                    *STACKSIZE.lock().unwrap(),
-                );
-                *STACKSIZE.lock().unwrap() += 8;
+                panic!("undefined variable: {}", name);
             }
             let r = Some(*REGNO.lock().unwrap());
             *REGNO.lock().unwrap() += 1;
@@ -298,6 +294,14 @@ fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
 
 fn gen_stmt(code: &mut Vec<IR>, node: Node) {
     match node.ty {
+        NodeType::Vardef(name) => {
+            VARS.lock().unwrap().insert(
+                name.clone(),
+                *STACKSIZE.lock().unwrap(),
+            );
+            *STACKSIZE.lock().unwrap() += 8;
+            return;
+        }
         NodeType::If(cond, then, els_may) => {
             let r = gen_expr(code, *cond);
             let x = Some(*LABEL.lock().unwrap());

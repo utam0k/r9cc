@@ -26,6 +26,7 @@ fn consume(tokens: &Vec<Token>, ty: TokenType, pos: &mut usize) -> bool {
 pub enum NodeType {
     Num(i32), // Number literal
     Ident(String), // Identifier
+    Vardef(String), // Variable definition
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
     For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
@@ -188,6 +189,18 @@ impl Node {
 
     fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         match tokens[*pos].ty {
+            TokenType::Int => {
+                *pos += 1;
+
+                let t = &tokens[*pos];
+                if let TokenType::Ident(ref name) = t.ty {
+                    *pos += 1;
+                    expect(&tokens[*pos], TokenType::Semicolon, pos);
+                    return Node::new(NodeType::Vardef(name.clone()));
+                } else {
+                    panic!("variable name expected, but got {}", t.input);
+                };
+            }
             TokenType::If => {
                 let mut els = None;
                 *pos += 1;
@@ -245,26 +258,37 @@ impl Node {
     }
 
     fn function(tokens: &Vec<Token>, pos: &mut usize) -> Self {
-        let t = tokens[*pos].clone();
-        match t.ty {
-            TokenType::Ident(name) => {
+        match tokens[*pos].ty {
+            TokenType::Int => {
                 *pos += 1;
+                let t = &tokens[*pos];
+                match t.ty {
+                    TokenType::Ident(ref name) => {
+                        *pos += 1;
 
-                let mut args = vec![];
-                expect(&tokens[*pos], TokenType::LeftParen, pos);
-                if !consume(tokens, TokenType::RightParen, pos) {
-                    args.push(Self::term(tokens, pos));
-                    while consume(tokens, TokenType::Colon, pos) {
-                        args.push(Self::term(tokens, pos));
+                        let mut args = vec![];
+                        expect(&tokens[*pos], TokenType::LeftParen, pos);
+                        if !consume(tokens, TokenType::RightParen, pos) {
+                            args.push(Self::term(tokens, pos));
+                            while consume(tokens, TokenType::Colon, pos) {
+                                args.push(Self::term(tokens, pos));
+                            }
+                            expect(&tokens[*pos], TokenType::RightParen, pos);
+                        }
+
+                        expect(&tokens[*pos], TokenType::LeftBrace, pos);
+                        let body = Self::compound_stmt(tokens, pos);
+                        Node::new(NodeType::Func(name.clone(), args, Box::new(body)))
                     }
-                    expect(&tokens[*pos], TokenType::RightParen, pos);
+                    _ => panic!("function name expected, but got {}", t.input),
                 }
-
-                expect(&tokens[*pos], TokenType::LeftBrace, pos);
-                let body = Self::compound_stmt(tokens, pos);
-                Node::new(NodeType::Func(name, args, Box::new(body)))
             }
-            _ => panic!("function name expected, but got {}", t.input),
+            _ => {
+                panic!(
+                    "function return type expected, but got {}",
+                    tokens[*pos].input
+                )
+            }
         }
     }
 

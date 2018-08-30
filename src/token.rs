@@ -9,6 +9,7 @@ pub enum TokenType {
     Div, // /
     If, // "if"
     Else, // "else"
+    For, // "for"
     Semicolon, // ;
     LeftParen, // (
     RightParen, // )
@@ -58,21 +59,14 @@ impl Symbol {
 }
 
 lazy_static! {
-    static ref SYMBOLS: [Symbol; 2] = [
+    static ref SYMBOLS: [Symbol; 6] = [
+        Symbol::new("else" , TokenType::Else),
+        Symbol::new("for" , TokenType::For),
+        Symbol::new("if" , TokenType::If),
+        Symbol::new("return" , TokenType::Return),
         Symbol::new("&&", TokenType::Logand),
         Symbol::new("||", TokenType::Logor),
     ];
-}
-
-impl From<String> for TokenType {
-    fn from(s: String) -> Self {
-        match &*s {
-            "return" => TokenType::Return,
-            "if" => TokenType::If,
-            "else" => TokenType::Else,
-            name => TokenType::Ident(name.to_string()),
-        }
-    }
 }
 
 // Token type
@@ -111,6 +105,10 @@ pub fn scan(mut p: String) -> Vec<Token> {
         for symbol in SYMBOLS.iter() {
             let name = symbol.name;
             let len = name.len();
+            if len > p.len() {
+                continue;
+            }
+
             let p_c = p.clone();
             let (first, _last) = p_c.split_at(len);
             if name != first {
@@ -127,17 +125,20 @@ pub fn scan(mut p: String) -> Vec<Token> {
 
         // Identifier
         if c.is_alphabetic() || c == '_' {
-            let mut name = String::new();
-            while let Some(c2) = p.chars().nth(0) {
+            let mut len = 1;
+            while let Some(c2) = p.chars().nth(len) {
                 if c2.is_alphabetic() || c2.is_ascii_digit() || c2 == '_' {
-                    p = p.split_off(1); // p++
-                    name.push(c2);
+                    len += 1;
                     continue;
                 }
                 break;
             }
+
+            let p_c = p.clone();
+            let (name, _last) = p_c.split_at(len);
+            p = p.split_off(len); // p += len
             let token = Token {
-                ty: TokenType::from(name),
+                ty: TokenType::Ident(name.to_string()),
                 input: p.clone(),
             };
             tokens.push(token);

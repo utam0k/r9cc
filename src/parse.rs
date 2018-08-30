@@ -27,7 +27,8 @@ pub enum NodeType {
     Num(i32), // Number literal
     Ident(String), // Identifier
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
-    If(Box<Node>, Box<Node>, Option<Box<Node>>), // cond, then, els
+    If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
+    For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
     Logand(Box<Node>, Box<Node>), // left-hand, right-hand
     Logor(Box<Node>, Box<Node>), // left-hand, right-hand
     Return(Box<Node>), // stmt
@@ -198,6 +199,18 @@ impl Node {
                     els = Some(Box::new(Self::stmt(&tokens, pos)));
                 }
                 Self::new(NodeType::If(Box::new(cond), Box::new(then), els))
+            }
+            TokenType::For => {
+                *pos += 1;
+                expect(&tokens[*pos], TokenType::LeftParen, pos);
+                let init = Box::new(Self::assign(&tokens, pos));
+                expect(&tokens[*pos], TokenType::Semicolon, pos);
+                let cond = Box::new(Self::assign(&tokens, pos));
+                expect(&tokens[*pos], TokenType::Semicolon, pos);
+                let inc = Box::new(Self::assign(&tokens, pos));
+                expect(&tokens[*pos], TokenType::RightParen, pos);
+                let body = Box::new(Self::stmt(&tokens, pos));
+                Self::new(NodeType::For(init, cond, inc, body))
             }
             TokenType::Return => {
                 *pos += 1;

@@ -319,6 +319,24 @@ fn gen_stmt(code: &mut Vec<IR>, node: Node) {
                 return;
             }
         }
+        NodeType::For(init, cond, inc, body) => {
+            let x = Some(*LABEL.lock().unwrap());
+            *LABEL.lock().unwrap() += 1;
+            let y = Some(*LABEL.lock().unwrap());
+            *LABEL.lock().unwrap() += 1;
+
+            let r1 = gen_expr(code, *init);
+            code.push(IR::new(IROp::Kill, r1, None));
+            code.push(IR::new(IROp::Label, x, None));
+            let r2 = gen_expr(code, *cond);
+            code.push(IR::new(IROp::Unless, r2, y));
+            code.push(IR::new(IROp::Kill, r2, None));
+            gen_stmt(code, *body);
+            let r3 = gen_expr(code, *inc);
+            code.push(IR::new(IROp::Kill, r3, None));
+            code.push(IR::new(IROp::Jmp, x, None));
+            code.push(IR::new(IROp::Label, y, None));
+        }
         NodeType::Return(expr) => {
             let r = gen_expr(code, *expr);
             code.push(IR::new(IROp::Return, r, None));

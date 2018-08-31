@@ -8,6 +8,7 @@ use r9cc::token::tokenize;
 use r9cc::sema::sema;
 
 use std::env;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let input: String;

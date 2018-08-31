@@ -104,5 +104,5 @@ pub fn sema(nodes: Vec<Node>) -> Vec<Node> {
         node.stacksize = *STACKSIZE.lock().unwrap();
         new_nodes.push(new);
     }
-    return new_nodes;
+    new_nodes
 }

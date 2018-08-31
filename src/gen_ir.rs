@@ -313,25 +313,28 @@ fn gen_stmt(code: &mut Vec<IR>, node: Node) {
             return;
         }
         NodeType::If(cond, then, els_may) => {
-            let r = gen_expr(code, *cond);
-            let x = Some(*LABEL.lock().unwrap());
-            *LABEL.lock().unwrap() += 1;
-            code.push(IR::new(IROp::Unless, r, x));
-            code.push(IR::new(IROp::Kill, r, None));
-            gen_stmt(code, *then);
-
             if let Some(els) = els_may {
+                let x = Some(*LABEL.lock().unwrap());
+                *LABEL.lock().unwrap() += 1;
                 let y = Some(*LABEL.lock().unwrap());
                 *LABEL.lock().unwrap() += 1;
+                let r = gen_expr(code, *cond.clone());
+                code.push(IR::new(IROp::Unless, r, x));
+                code.push(IR::new(IROp::Kill, r, None));
+                gen_stmt(code, *then.clone());
                 code.push(IR::new(IROp::Jmp, y, None));
                 code.push(IR::new(IROp::Label, x, None));
                 gen_stmt(code, *els);
                 code.push(IR::new(IROp::Label, y, None));
-                return;
-            } else {
-                code.push(IR::new(IROp::Label, x, None));
-                return;
             }
+
+            let x = Some(*LABEL.lock().unwrap());
+            *LABEL.lock().unwrap() += 1;
+            let r = gen_expr(code, *cond);
+            code.push(IR::new(IROp::Unless, r, x));
+            code.push(IR::new(IROp::Kill, r, None));
+            gen_stmt(code, *then);
+            code.push(IR::new(IROp::Label, x, None));
         }
         NodeType::For(init, cond, inc, body) => {
             let x = Some(*LABEL.lock().unwrap());

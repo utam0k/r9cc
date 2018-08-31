@@ -1,6 +1,6 @@
 use token::{Token, TokenType};
 
-fn expect(t: &Token, ty: TokenType, pos: &mut usize) {
+fn expect(ty: TokenType, t: &Token, pos: &mut usize) {
     if t.ty != ty {
         panic!(
             "{:?} ({:?}) expected, but got {:?} ({:?})",
@@ -13,7 +13,7 @@ fn expect(t: &Token, ty: TokenType, pos: &mut usize) {
     *pos += 1;
 }
 
-fn consume(tokens: &Vec<Token>, ty: TokenType, pos: &mut usize) -> bool {
+fn consume(ty: TokenType, tokens: &Vec<Token>, pos: &mut usize) -> bool {
     let t = &tokens[*pos];
     if t.ty != ty {
         return false;
@@ -59,25 +59,25 @@ impl Node {
         match t.ty {
             TokenType::Num(val) => return Self::new(NodeType::Num(val)),
             TokenType::Ident(ref name) => {
-                if !consume(tokens, TokenType::LeftParen, pos) {
+                if !consume(TokenType::LeftParen, tokens, pos) {
                     return Self::new(NodeType::Ident(name.clone()));
                 }
 
                 let mut args = vec![];
-                if consume(tokens, TokenType::RightParen, pos) {
+                if consume(TokenType::RightParen, tokens, pos) {
                     return Self::new(NodeType::Call(name.clone(), args));
                 }
 
                 args.push(Self::assign(tokens, pos));
-                while consume(tokens, TokenType::Colon, pos) {
+                while consume(TokenType::Colon, tokens, pos) {
                     args.push(Self::assign(tokens, pos));
                 }
-                expect(&tokens[*pos], TokenType::RightParen, pos);
+                expect(TokenType::RightParen, &tokens[*pos], pos);
                 return Self::new(NodeType::Call(name.clone(), args));
             }
             TokenType::LeftParen => {
                 let node = Self::assign(tokens, pos);
-                expect(&tokens[*pos], TokenType::RightParen, pos);
+                expect(TokenType::RightParen, &tokens[*pos], pos);
                 node
             }
             _ => panic!("number expected, but got {}", t.input),
@@ -181,7 +181,7 @@ impl Node {
 
     fn assign(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         let lhs = Self::logor(tokens, pos);
-        if consume(tokens, TokenType::Equal, pos) {
+        if consume(TokenType::Equal, tokens, pos) {
             return Self::new(NodeType::BinOp(
                 TokenType::Equal,
                 Box::new(lhs),
@@ -199,12 +199,12 @@ impl Node {
             *pos += 1;
 
             let init: Option<Box<Node>>;
-            if consume(tokens, TokenType::Equal, pos) {
+            if consume(TokenType::Equal, tokens, pos) {
                 init = Some(Box::new(Self::assign(tokens, pos)));
             } else {
                 init = None
             }
-            expect(&tokens[*pos], TokenType::Semicolon, pos);
+            expect(TokenType::Semicolon, &tokens[*pos], pos);
             return Node::new(NodeType::Vardef(name.clone(), init));
         } else {
             panic!("variable name expected, but got {}", t.input);
@@ -213,7 +213,7 @@ impl Node {
 
     fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         let expr = Self::assign(tokens, pos);
-        expect(&tokens[*pos], TokenType::Semicolon, pos);
+        expect(TokenType::Semicolon, &tokens[*pos], pos);
         Node::new(NodeType::ExprStmt(Box::new(expr)))
     }
 
@@ -223,18 +223,18 @@ impl Node {
             TokenType::If => {
                 let mut els = None;
                 *pos += 1;
-                expect(&tokens[*pos], TokenType::LeftParen, pos);
+                expect(TokenType::LeftParen, &tokens[*pos], pos);
                 let cond = Self::assign(&tokens, pos);
-                expect(&tokens[*pos], TokenType::RightParen, pos);
+                expect(TokenType::RightParen, &tokens[*pos], pos);
                 let then = Self::stmt(&tokens, pos);
-                if consume(tokens, TokenType::Else, pos) {
+                if consume(TokenType::Else, tokens, pos) {
                     els = Some(Box::new(Self::stmt(&tokens, pos)));
                 }
                 Self::new(NodeType::If(Box::new(cond), Box::new(then), els))
             }
             TokenType::For => {
                 *pos += 1;
-                expect(&tokens[*pos], TokenType::LeftParen, pos);
+                expect(TokenType::LeftParen, &tokens[*pos], pos);
                 let init: Box<Node>;
                 if is_typename(&tokens[*pos]) {
                     init = Box::new(Self::decl(tokens, pos));
@@ -242,22 +242,22 @@ impl Node {
                     init = Box::new(Self::expr_stmt(tokens, pos));
                 }
                 let cond = Box::new(Self::assign(&tokens, pos));
-                expect(&tokens[*pos], TokenType::Semicolon, pos);
+                expect(TokenType::Semicolon, &tokens[*pos], pos);
                 let inc = Box::new(Self::assign(&tokens, pos));
-                expect(&tokens[*pos], TokenType::RightParen, pos);
+                expect(TokenType::RightParen, &tokens[*pos], pos);
                 let body = Box::new(Self::stmt(&tokens, pos));
                 Self::new(NodeType::For(init, cond, inc, body))
             }
             TokenType::Return => {
                 *pos += 1;
                 let expr = Self::assign(&tokens, pos);
-                expect(&tokens[*pos], TokenType::Semicolon, pos);
+                expect(TokenType::Semicolon, &tokens[*pos], pos);
                 Self::new(NodeType::Return(Box::new(expr)))
             }
             TokenType::LeftBrace => {
                 *pos += 1;
                 let mut stmts = vec![];
-                while !consume(tokens, TokenType::RightBrace, pos) {
+                while !consume(TokenType::RightBrace, tokens, pos) {
                     stmts.push(Self::stmt(&tokens, pos));
                 }
                 Self::new(NodeType::CompStmt(stmts))
@@ -265,7 +265,7 @@ impl Node {
             _ => {
                 let expr = Self::assign(&tokens, pos);
                 let node = Self::new(NodeType::ExprStmt(Box::new(expr)));
-                expect(&tokens[*pos], TokenType::Semicolon, pos);
+                expect(TokenType::Semicolon, &tokens[*pos], pos);
                 return node;
             }
         }
@@ -274,7 +274,7 @@ impl Node {
     fn compound_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         let mut stmts = vec![];
 
-        while !consume(tokens, TokenType::RightBrace, pos) {
+        while !consume(TokenType::RightBrace, tokens, pos) {
             stmts.push(Self::stmt(tokens, pos));
         }
         Self::new(NodeType::CompStmt(stmts))
@@ -290,16 +290,16 @@ impl Node {
                         *pos += 1;
 
                         let mut args = vec![];
-                        expect(&tokens[*pos], TokenType::LeftParen, pos);
-                        if !consume(tokens, TokenType::RightParen, pos) {
+                        expect(TokenType::LeftParen, &tokens[*pos], pos);
+                        if !consume(TokenType::RightParen, tokens, pos) {
                             args.push(Self::term(tokens, pos));
-                            while consume(tokens, TokenType::Colon, pos) {
+                            while consume(TokenType::Colon, tokens, pos) {
                                 args.push(Self::term(tokens, pos));
                             }
-                            expect(&tokens[*pos], TokenType::RightParen, pos);
+                            expect(TokenType::RightParen, &tokens[*pos], pos);
                         }
 
-                        expect(&tokens[*pos], TokenType::LeftBrace, pos);
+                        expect(TokenType::LeftBrace, &tokens[*pos], pos);
                         let body = Self::compound_stmt(tokens, pos);
                         Node::new(NodeType::Func(name.clone(), args, Box::new(body)))
                     }

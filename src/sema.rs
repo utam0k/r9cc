@@ -1,4 +1,5 @@
-use parse::{Node, NodeType};
+use parse::{Node, NodeType, Type};
+use token::TokenType;
 
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -14,31 +15,48 @@ macro_rules! matches(
 
 lazy_static!{
     static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
-    static ref VARS: Mutex<HashMap<String, usize>> = Mutex::new(HashMap::new());
+    static ref VARS: Mutex<HashMap<String, Var>> = Mutex::new(HashMap::new());
+}
+
+pub struct Var {
+    ty: Box<Type>,
+    offset: usize,
+}
+
+impl Var {
+    fn new(ty: Box<Type>, offset: usize) -> Self {
+        Var {
+            ty: ty,
+            offset: offset,
+        }
+    }
 }
 
 fn walk(mut node: Node) -> Node {
     use self::NodeType::*;
-    let ty = node.ty.clone();
-    match ty {
+    let op = node.op.clone();
+    match op {
         Num(_) => return node,
         Ident(ref name) => {
-            if let Some(offset) = VARS.lock().unwrap().get(name) {
-                node.ty = NodeType::Lvar;
-                node.offset = offset.clone();
+            if let Some(var) = VARS.lock().unwrap().get(name) {
+                node.op = NodeType::Lvar;
+                node.ty = var.ty.clone();
+                node.offset = var.offset;
             } else {
                 panic!("undefined variable: {}", name);
             }
         }
         Vardef(name, init_may) => {
             *STACKSIZE.lock().unwrap() += 8;
+            node.offset = *STACKSIZE.lock().unwrap();
+
             VARS.lock().unwrap().insert(
                 name.clone(),
-                *STACKSIZE.lock().unwrap(),
+                Var::new(node.ty.clone(), *STACKSIZE.lock().unwrap()),
             );
-            node.offset = *STACKSIZE.lock().unwrap();
+
             if let Some(mut init) = init_may {
-                node.ty = Vardef(name, Some(Box::new(walk(*init))));
+                node.op = Vardef(name, Some(Box::new(walk(*init))));
             }
         }
         If(cond, then, els_may) => {
@@ -48,46 +66,68 @@ fn walk(mut node: Node) -> Node {
             if let Some(mut els) = els_may {
                 new_els = Some(Box::new(walk(*els)));
             }
-            node.ty = If(new_cond, new_then, new_els);
+            node.op = If(new_cond, new_then, new_els);
         }
         For(init, cond, inc, body) => {
-            node.ty = For(
+            node.op = For(
                 Box::new(walk(*init)),
                 Box::new(walk(*cond)),
                 Box::new(walk(*inc)),
                 Box::new(walk(*body)),
             );
         }
-        BinOp(token_type, lhs, rhs) => {
-            node.ty = BinOp(token_type, Box::new(walk(*lhs)), Box::new(walk(*rhs)));
+        BinOp(token_type, mut lhs, rhs) => {
+            match token_type {
+                TokenType::Plus => {
+                    lhs = Box::new(walk(*lhs));
+                    node.op = BinOp(token_type, lhs.clone(), Box::new(walk(*rhs)));
+                    node.ty = lhs.ty;
+                }
+                _ => {
+                    lhs = Box::new(walk(*lhs));
+                    node.op = BinOp(token_type, lhs.clone(), Box::new(walk(*rhs)));
+                    node.ty = lhs.ty;
+                }
+            }
         }
-        Logand(lhs, rhs) => node.ty = Logand(Box::new(walk(*lhs)), Box::new(walk(*rhs))),
-        Logor(lhs, rhs) => node.ty = Logor(Box::new(walk(*lhs)), Box::new(walk(*rhs))),
+        Logand(mut lhs, rhs) => {
+            lhs = Box::new(walk(*lhs));
+            node.op = Logand(lhs.clone(), Box::new(walk(*rhs)));
+            node.ty = lhs.ty;
+        }
+        Logor(mut lhs, rhs) => {
+            lhs = Box::new(walk(*lhs));
+            node.op = Logor(lhs.clone(), Box::new(walk(*rhs)));
+            node.ty = lhs.ty;
+        }
+        Deref(expr) => {
+            node.op = Deref(Box::new(walk(*expr)));
+        }
         Return(expr) => {
-            node.ty = Return(Box::new(walk(*expr)));
+            node.op = Return(Box::new(walk(*expr)));
         }
         Call(name, args) => {
             let mut new_args = vec![];
             for arg in args {
                 new_args.push(walk(arg));
             }
-            node.ty = Call(name, new_args);
+            node.op = Call(name, new_args);
         }
         Func(name, args, body) => {
             let mut new_args = vec![];
             for arg in args {
                 new_args.push(walk(arg));
             }
-            node.ty = Func(name, new_args, Box::new(walk(*body)));
+            node.op = Func(name, new_args, Box::new(walk(*body)));
         }
         CompStmt(stmts) => {
             let mut new_stmts = vec![];
             for stmt in stmts {
                 new_stmts.push(walk(stmt));
             }
-            node.ty = CompStmt(new_stmts);
+            node.op = CompStmt(new_stmts);
         }
-        ExprStmt(expr) => node.ty = ExprStmt(Box::new(walk(*expr))),
+        ExprStmt(expr) => node.op = ExprStmt(Box::new(walk(*expr))),
         _ => panic!("unknown node type"),
     };
     node
@@ -96,7 +136,7 @@ fn walk(mut node: Node) -> Node {
 pub fn sema(nodes: Vec<Node>) -> Vec<Node> {
     let mut new_nodes = vec![];
     for mut node in nodes {
-        assert!(matches!(node.ty, NodeType::Func(_, _, _)));
+        assert!(matches!(node.op, NodeType::Func(_, _, _)));
 
         *VARS.lock().unwrap() = HashMap::new();
         *STACKSIZE.lock().unwrap() = 0;

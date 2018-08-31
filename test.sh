@@ -7,7 +7,7 @@ try() {
     input="$2"
 
     ${r9cc} "$input" > tmp.s
-    gcc -static -o tmp tmp.s tmp-plus.o
+    gcc -static -o tmp tmp.s tmp-test.o
     ./tmp
     actual="$?"
 
@@ -19,7 +19,14 @@ try() {
     fi
 }
 
-echo 'int plus(int x, int y) { return x + y; }' | gcc -xc -c -o tmp-plus.o -
+cat <<EOF | gcc -xc -c -o tmp-test.o -
+int plus(int x, int y) { return x + y; }
+ int *alloc(int x) {
+  static int arr[1];
+  arr[0] = x;
+  return arr;
+}
+EOF
 
 cargo build
 
@@ -69,5 +76,7 @@ try 1 'int main() { return 1>0; }'
 
 try 60 'int main() { int sum=0; int i; for (i=10; i<15; i=i+1) sum = sum + i; return sum;}'
 try 89 'int main() { int i=1; int j=1; for (int k=0; k<10; k=k+1) { int m=i+j; i=j; j=m; } return i;}'
+
+try 42 'int main() { int *p = alloc(42); return *p; }'
 
 echo OK

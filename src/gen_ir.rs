@@ -193,7 +193,7 @@ fn label(x: Option<usize>, code: &mut Vec<IR>) {
 }
 
 fn gen_lval(code: &mut Vec<IR>, node: Node) -> Option<usize> {
-    match node.ty {
+    match node.op {
         NodeType::Lvar => {
             let r = Some(*NREG.lock().unwrap());
             *NREG.lock().unwrap() += 1;
@@ -201,12 +201,12 @@ fn gen_lval(code: &mut Vec<IR>, node: Node) -> Option<usize> {
             code.push(IR::new(IROp::SubImm, r, Some(node.offset)));
             return r;
         }
-        _ => panic!("not an lvalue: {:?}", node.ty),
+        _ => panic!("not an lvalue: {:?}", node.op),
     }
 }
 
 fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
-    match node.ty {
+    match node.op {
         NodeType::Num(val) => {
             let r = Some(*NREG.lock().unwrap());
             *NREG.lock().unwrap() += 1;
@@ -268,6 +268,11 @@ fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
             }
             return r;
         }
+        NodeType::Deref(expr) => {
+            let r = gen_expr(code, *expr);
+            code.push(IR::new(IROp::Load, r, r));
+            return r;
+        }
         NodeType::BinOp(op, lhs, rhs) => {
             match op {
                 TokenType::Equal => {
@@ -288,12 +293,12 @@ fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
                 }
             }
         }
-        _ => unreachable!("{:?}", node),
+        e => unreachable!("{:?}", e),
     }
 }
 
 fn gen_stmt(code: &mut Vec<IR>, node: Node) {
-    match node.ty {
+    match node.op {
         NodeType::Vardef(_, init_may) => {
             if let Some(init) = init_may {
                 let rhs = gen_expr(code, *init);
@@ -370,7 +375,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
     let mut v = vec![];
     let len = nodes.len();
     for node in nodes {
-        match node.ty {
+        match node.op {
             NodeType::Func(name, args, body) => {
                 let mut code = vec![];
                 *NREG.lock().unwrap() = 1;

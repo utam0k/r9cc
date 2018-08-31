@@ -35,6 +35,7 @@ pub enum NodeType {
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
     For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
+    Deref(Box<Node>), // pointer dereference ("*"), expr
     Logand(Box<Node>, Box<Node>), // left-hand, right-hand
     Logor(Box<Node>, Box<Node>), // left-hand, right-hand
     Return(Box<Node>), // stmt
@@ -45,8 +46,40 @@ pub enum NodeType {
 }
 
 #[derive(Debug, Clone)]
+pub enum Ctype {
+    Int,
+    Ptr(Box<Type>), // ptr of
+}
+
+impl Default for Ctype {
+    fn default() -> Ctype {
+        Ctype::Int
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Type {
+    ty: Ctype,
+}
+
+impl Default for Type {
+    fn default() -> Type {
+        Type { ty: Ctype::default() }
+    }
+}
+
+impl Type {
+    fn new(ty: Ctype) -> Self {
+        Type { ty: ty }
+    }
+}
+
+
+
+#[derive(Debug, Clone)]
 pub struct Node {
-    pub ty: NodeType, // Node type
+    pub op: NodeType, // Node type
+    pub ty: Box<Type>, // C type
 
     // Function definition
     pub stacksize: usize,
@@ -58,7 +91,8 @@ pub struct Node {
 impl Node {
     fn new(op: NodeType) -> Self {
         Self {
-            ty: op,
+            op: op,
+            ty: Box::new(Type::default()),
             stacksize: 0,
             offset: 0,
         }
@@ -68,7 +102,11 @@ impl Node {
         let t = &tokens[*pos];
         *pos += 1;
         match t.ty {
-            TokenType::Num(val) => return Self::new(NodeType::Num(val)),
+            TokenType::Num(val) => {
+                let mut node = Self::new(NodeType::Num(val));
+                node.ty = Box::new(Type::new(Ctype::Int));
+                node
+            }
             TokenType::Ident(ref name) => {
                 if !consume(TokenType::LeftParen, tokens, pos) {
                     return Self::new(NodeType::Ident(name.clone()));
@@ -95,8 +133,15 @@ impl Node {
         }
     }
 
+    fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        if consume(TokenType::Mul, tokens, pos) {
+            return Node::new(NodeType::Deref(Box::new(Self::mul(tokens, pos))));
+        }
+        Self::term(tokens, pos)
+    }
+
     fn mul(tokens: &Vec<Token>, pos: &mut usize) -> Self {
-        let mut lhs = Self::term(&tokens, pos);
+        let mut lhs = Self::unary(&tokens, pos);
 
         loop {
             if tokens.len() == *pos {
@@ -111,7 +156,7 @@ impl Node {
             lhs = Self::new(NodeType::BinOp(
                 t.ty.clone(),
                 Box::new(lhs),
-                Box::new(Self::term(&tokens, pos)),
+                Box::new(Self::unary(&tokens, pos)),
             ));
         }
     }
@@ -202,13 +247,26 @@ impl Node {
         return lhs;
     }
 
-    fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Self {
-        *pos += 1;
+    fn ctype(tokens: &Vec<Token>, pos: &mut usize) -> Type {
+        let t = &tokens[*pos];
+        if let TokenType::Int = t.ty {
+            *pos += 1;
 
+            let mut ty = Ctype::Int;
+            while consume(TokenType::Mul, tokens, pos) {
+                ty = Ctype::Ptr(Box::new(Type::new(ty)));
+            }
+            Type::new(ty)
+        } else {
+            panic!("typename expected, but got {}", t.input);
+        }
+    }
+
+    fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        let ty = Box::new(Self::ctype(tokens, pos));
         let t = &tokens[*pos];
         if let TokenType::Ident(ref name) = t.ty {
             *pos += 1;
-
             let init: Option<Box<Node>>;
             if consume(TokenType::Equal, tokens, pos) {
                 init = Some(Box::new(Self::assign(tokens, pos)));
@@ -216,19 +274,22 @@ impl Node {
                 init = None
             }
             expect(TokenType::Semicolon, &tokens[*pos], pos);
-            return Node::new(NodeType::Vardef(name.clone(), init));
+            let mut node = Node::new(NodeType::Vardef(name.clone(), init));
+            node.ty = ty;
+            node
         } else {
             panic!("variable name expected, but got {}", t.input);
         }
     }
 
     fn param(tokens: &Vec<Token>, pos: &mut usize) -> Self {
-        *pos += 1;
-
+        let ty = Box::new(Self::ctype(tokens, pos));
         let t = &tokens[*pos];
         if let TokenType::Ident(ref name) = t.ty {
             *pos += 1;
-            return Node::new(NodeType::Vardef(name.clone(), None));
+            let mut node = Node::new(NodeType::Vardef(name.clone(), None));
+            node.ty = ty;
+            node
         } else {
             panic!("parameter name expected, but got {}", t.input);
         }

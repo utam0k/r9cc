@@ -6,13 +6,9 @@ use token::TokenType;
 
 use std::sync::Mutex;
 use std::fmt;
-use std::collections::HashMap;
 
 lazy_static!{
-    static ref VARS: Mutex<HashMap<String, usize>> = Mutex::new(HashMap::new());
-
     static ref REGNO: Mutex<usize> = Mutex::new(1);
-    static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
     static ref LABEL: Mutex<usize> = Mutex::new(0);
 }
 
@@ -190,18 +186,14 @@ impl IR {
 
 fn gen_lval(code: &mut Vec<IR>, node: Node) -> Option<usize> {
     match node.ty {
-        NodeType::Ident(name) => {
-            if VARS.lock().unwrap().get(&name).is_none() {
-                panic!("undefined variable: {}", name);
-            }
+        NodeType::Lvar => {
             let r = Some(*REGNO.lock().unwrap());
             *REGNO.lock().unwrap() += 1;
-            let off = *VARS.lock().unwrap().get(&name).unwrap();
             code.push(IR::new(IROp::Mov, r, Some(0)));
-            code.push(IR::new(IROp::SubImm, r, Some(off)));
+            code.push(IR::new(IROp::SubImm, r, Some(node.offset)));
             return r;
         }
-        _ => panic!("not an lvalue"),
+        _ => panic!("not an lvalue: {:?}", node.ty),
     }
 }
 
@@ -247,7 +239,7 @@ fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
             code.push(IR::new(IROp::Label, y, None));
             return r1;
         }
-        NodeType::Ident(_) => {
+        NodeType::Lvar => {
             let r = gen_lval(code, node);
             code.push(IR::new(IROp::Load, r, r));
             return r;
@@ -288,24 +280,19 @@ fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
                 }
             }
         }
-        _ => unreachable!(),
+        _ => unreachable!("{:?}", node),
     }
 }
 
 fn gen_stmt(code: &mut Vec<IR>, node: Node) {
     match node.ty {
-        NodeType::Vardef(name, init_may) => {
-            *STACKSIZE.lock().unwrap() += 8;
-            VARS.lock().unwrap().insert(
-                name.clone(),
-                *STACKSIZE.lock().unwrap(),
-            );
+        NodeType::Vardef(_, init_may) => {
             if let Some(init) = init_may {
                 let rhs = gen_expr(code, *init);
                 let lhs = Some(*REGNO.lock().unwrap());
                 *REGNO.lock().unwrap() += 1;
                 code.push(IR::new(IROp::Mov, lhs, Some(0)));
-                code.push(IR::new(IROp::SubImm, lhs, Some(*STACKSIZE.lock().unwrap())));
+                code.push(IR::new(IROp::SubImm, lhs, Some(node.offset)));
                 code.push(IR::new(IROp::Store, lhs, rhs));
                 code.push(IR::new(IROp::Kill, lhs, None));
                 code.push(IR::new(IROp::Kill, rhs, None));
@@ -371,42 +358,21 @@ fn gen_stmt(code: &mut Vec<IR>, node: Node) {
     }
 }
 
-fn gen_args(code: &mut Vec<IR>, nodes: Vec<Node>) {
-    if nodes.len() == 0 {
-        return;
-    }
-
-    code.push(IR::new(IROp::SaveArgs, Some(nodes.len()), None));
-
-    for node in nodes {
-        match node.ty {
-            NodeType::Ident(name) => {
-                *STACKSIZE.lock().unwrap() += 8;
-                VARS.lock().unwrap().insert(
-                    name.clone(),
-                    *STACKSIZE.lock().unwrap(),
-                );
-            }
-            _ => panic!("bad parameter"),
-        }
-    }
-}
-
 pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
     let mut v = vec![];
+    let len = nodes.len();
     for node in nodes {
         match node.ty {
             NodeType::Func(name, args, body) => {
                 let mut code = vec![];
-                *VARS.lock().unwrap() = HashMap::new();
-
                 *REGNO.lock().unwrap() = 1;
-                *STACKSIZE.lock().unwrap() = 0;
 
-                gen_args(&mut code, args);
+                if len > 0 {
+                    code.push(IR::new(IROp::SaveArgs, Some(args.len()), None));
+                }
                 gen_stmt(&mut code, *body);
 
-                v.push(Function::new(name, code, *STACKSIZE.lock().unwrap()));
+                v.push(Function::new(name, code, node.stacksize));
             }
             _ => panic!("parse error."),
         }

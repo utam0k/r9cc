@@ -3,6 +3,7 @@ pub mod gen_ir;
 pub mod parse;
 pub mod regalloc;
 pub mod token;
+pub mod sema;
 
 #[macro_use]
 extern crate lazy_static;

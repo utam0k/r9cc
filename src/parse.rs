@@ -31,6 +31,7 @@ pub enum NodeType {
     Num(i32), // Number literal
     Ident(String), // Identifier
     Vardef(String, Option<Box<Node>>), // Variable definition, name = init
+    Lvar, // Variable reference
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
     For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
@@ -46,11 +47,21 @@ pub enum NodeType {
 #[derive(Debug, Clone)]
 pub struct Node {
     pub ty: NodeType, // Node type
+
+    // Function definition
+    pub stacksize: usize,
+
+    // Local variable
+    pub offset: usize,
 }
 
 impl Node {
     fn new(op: NodeType) -> Self {
-        Self { ty: op }
+        Self {
+            ty: op,
+            stacksize: 0,
+            offset: 0,
+        }
     }
 
     fn term(tokens: &Vec<Token>, pos: &mut usize) -> Self {
@@ -211,6 +222,18 @@ impl Node {
         }
     }
 
+    fn param(tokens: &Vec<Token>, pos: &mut usize) -> Self {
+        *pos += 1;
+
+        let t = &tokens[*pos];
+        if let TokenType::Ident(ref name) = t.ty {
+            *pos += 1;
+            return Node::new(NodeType::Vardef(name.clone(), None));
+        } else {
+            panic!("parameter name expected, but got {}", t.input);
+        }
+    }
+
     fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Self {
         let expr = Self::assign(tokens, pos);
         expect(TokenType::Semicolon, &tokens[*pos], pos);
@@ -292,9 +315,9 @@ impl Node {
                         let mut args = vec![];
                         expect(TokenType::LeftParen, &tokens[*pos], pos);
                         if !consume(TokenType::RightParen, tokens, pos) {
-                            args.push(Self::term(tokens, pos));
+                            args.push(Self::param(tokens, pos));
                             while consume(TokenType::Colon, tokens, pos) {
-                                args.push(Self::term(tokens, pos));
+                                args.push(Self::param(tokens, pos));
                             }
                             expect(TokenType::RightParen, &tokens[*pos], pos);
                         }

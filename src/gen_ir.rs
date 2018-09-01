@@ -216,7 +216,7 @@ fn gen_lval(node: Node) -> Option<usize> {
             add(IROp::SubImm, r, Some(node.offset));
             return r;
         }
-        _ => panic!("not an lvalue: {:?}", node.op),
+        _ => unreachable!(),
     }
 }
 

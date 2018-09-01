@@ -113,6 +113,9 @@ fn walk(mut node: Node, decay: bool) -> Node {
                 }
                 TokenType::Equal => {
                     lhs = Box::new(walk(*lhs, false));
+                    if !matches!(lhs.op, NodeType::Lvar) && !matches!(lhs.op, NodeType::Deref(_)) {
+                        panic!("not an lvalue: {:?}", node.op);
+                    }
                     node.op = BinOp(token_type, lhs.clone(), Box::new(walk(*rhs, true)));
                     node.ty = lhs.ty;
                 }

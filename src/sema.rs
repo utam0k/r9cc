@@ -143,6 +143,11 @@ fn walk(mut node: Node, decay: bool) -> Node {
             node.op = Logor(lhs.clone(), Box::new(walk(*rhs, true)));
             node.ty = lhs.ty;
         }
+        Addr(mut expr) => {
+            expr = Box::new(walk(*expr, true));
+            node.ty = Box::new(Type::new(Ctype::Ptr(expr.ty.clone())));
+            node.op = Addr(expr);
+        }
         Deref(mut expr) => {
             expr = Box::new(walk(*expr, true));
             match expr.ty.ty {
@@ -151,9 +156,7 @@ fn walk(mut node: Node, decay: bool) -> Node {
             }
             node.op = Deref(expr);
         }
-        Return(expr) => {
-            node.op = Return(Box::new(walk(*expr, true)));
-        }
+        Return(expr) => node.op = Return(Box::new(walk(*expr, true))),
         Call(name, args) => {
             let mut new_args = vec![];
             for arg in args {

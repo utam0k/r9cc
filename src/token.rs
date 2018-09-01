@@ -7,6 +7,7 @@ pub enum TokenType {
     Plus, // +
     Minus, // -
     Mul, // *
+    And, // &
     Div, // /
     If, // "if"
     Else, // "else"
@@ -36,6 +37,7 @@ impl TokenType {
             '-' => Some(Minus),
             '*' => Some(Mul),
             '/' => Some(Div),
+            '&' => Some(And),
             ';' => Some(Semicolon),
             '=' => Some(Equal),
             '(' => Some(LeftParen),
@@ -94,17 +96,6 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
             continue;
         }
 
-        // Single-letter token
-        if let Some(ty) = TokenType::new_single_letter(c) {
-            let token = Token {
-                ty: ty,
-                input: p.clone(),
-            };
-            p = p.split_off(1); // p++
-            tokens.push(token);
-            continue;
-        }
-
         // Multi-letter symbol or keyword
         for symbol in SYMBOLS.iter() {
             let name = symbol.name;
@@ -125,6 +116,17 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
             });
             p = p.split_off(len); // p += len
             continue 'outer;
+        }
+
+        // Single-letter token
+        if let Some(ty) = TokenType::new_single_letter(c) {
+            let token = Token {
+                ty: ty,
+                input: p.clone(),
+            };
+            p = p.split_off(1); // p++
+            tokens.push(token);
+            continue;
         }
 
         // Identifier

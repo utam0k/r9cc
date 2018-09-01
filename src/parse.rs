@@ -138,6 +138,9 @@ fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     if consume(TokenType::Mul, tokens, pos) {
         return Node::new(NodeType::Deref(Box::new(mul(tokens, pos))));
     }
+    if consume(TokenType::And, tokens, pos) {
+        return Node::new(NodeType::Addr(Box::new(mul(tokens, pos))));
+    }
     term(tokens, pos)
 }
 

@@ -1,10 +1,12 @@
 use gen_ir::{IROp, Function};
 use REGS;
 use REGS8;
+use REGS32;
 
 use std::sync::Mutex;
 
-const ARGREG: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+const ARGREG32: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
+const ARGREG64: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
 lazy_static! {
     static ref LABEL: Mutex<usize> = Mutex::new(0);
@@ -37,7 +39,7 @@ fn gen(f: Function) {
             }
             Call(name, nargs, args) => {
                 for i in 0..nargs {
-                    print!("  mov {}, {}\n", ARGREG[i], REGS[args[i]]);
+                    print!("  mov {}, {}\n", ARGREG64[i], REGS[args[i]]);
                 }
                 print!("  push r10\n");
                 print!("  push r11\n");
@@ -59,13 +61,12 @@ fn gen(f: Function) {
                 print!("  cmp {}, 0\n", REGS[lhs]);
                 print!("  je .L{}\n", ir.rhs.unwrap());
             }
-            Load => print!("  mov {}, [{}]\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            Store => print!("  mov [{}], {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            SaveArgs => {
-                for i in 0..lhs {
-                    print!("  mov [rbp-{}], {}\n", (i + 1) * 8, ARGREG[i]);
-                }
-            }
+            Load32 => print!("  mov {}, [{}]\n", REGS32[lhs], REGS[ir.rhs.unwrap()]),
+            Load64 => print!("  mov {}, [{}]\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            Store32 => print!("  mov [{}], {}\n", REGS[lhs], REGS32[ir.rhs.unwrap()]),
+            Store64 => print!("  mov [{}], {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            Store32Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG32[ir.rhs.unwrap()]),
+            Store64Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG64[ir.rhs.unwrap()]),
             Add => print!("  add {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             Sub => print!("  sub {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             SubImm => print!("  sub {}, {}\n", REGS[lhs], ir.rhs.unwrap()),

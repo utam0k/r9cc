@@ -14,6 +14,8 @@ pub enum TokenType {
     Semicolon, // ;
     LeftParen, // (
     RightParen, // )
+    LeftBracket, // [
+    RightBracket, // ]
     LeftBrace, // {
     RightBrace, // {
     LeftAngleBracket, // <
@@ -25,24 +27,27 @@ pub enum TokenType {
     Colon, // ,
 }
 
-impl From<char> for TokenType {
-    fn from(c: char) -> Self {
+// impl From<char> for TokenType {
+impl TokenType {
+    fn new_single_letter(c: char) -> Option<Self> {
         use self::TokenType::*;
         match c {
-            '+' => Plus,
-            '-' => Minus,
-            '*' => Mul,
-            '/' => Div,
-            ';' => Semicolon,
-            '=' => Equal,
-            '(' => LeftParen,
-            ')' => RightParen,
-            '{' => LeftBrace,
-            '}' => RightBrace,
-            '<' => LeftAngleBracket,
-            '>' => RightAngleBracket,
-            ',' => Colon,
-            e => panic!("unknow Token type: {}", e),
+            '+' => Some(Plus),
+            '-' => Some(Minus),
+            '*' => Some(Mul),
+            '/' => Some(Div),
+            ';' => Some(Semicolon),
+            '=' => Some(Equal),
+            '(' => Some(LeftParen),
+            ')' => Some(RightParen),
+            '[' => Some(LeftBracket),
+            ']' => Some(RightBracket),
+            '{' => Some(LeftBrace),
+            '}' => Some(RightBrace),
+            '<' => Some(LeftAngleBracket),
+            '>' => Some(RightAngleBracket),
+            ',' => Some(Colon),
+            _ => None,
         }
     }
 }
@@ -90,17 +95,14 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
         }
 
         // Single-letter token
-        match c {
-            '+' | '-' | '*' | '/' | ';' | '=' | '(' | ')' | ',' | '{' | '}' | '<' | '>' => {
-                let token = Token {
-                    ty: TokenType::from(c),
-                    input: p.clone(),
-                };
-                p = p.split_off(1); // p++
-                tokens.push(token);
-                continue;
-            }
-            _ => (),
+        if let Some(ty) = TokenType::new_single_letter(c) {
+            let token = Token {
+                ty: ty,
+                input: p.clone(),
+            };
+            p = p.split_off(1); // p++
+            tokens.push(token);
+            continue;
         }
 
         // Multi-letter symbol or keyword

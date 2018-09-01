@@ -27,6 +27,7 @@ pub enum IRType {
     Label,
     RegReg,
     RegImm,
+    ImmImm,
     RegLabel,
     Call,
 }
@@ -84,10 +85,13 @@ pub enum IROp {
     LT,
     Jmp,
     Unless,
-    Load,
-    Store,
+    Load32,
+    Load64,
+    Store32,
+    Store64,
+    Store32Arg,
+    Store64Arg,
     Kill,
-    SaveArgs,
     Nop,
 }
 
@@ -96,23 +100,26 @@ impl<'a> From<&'a IROp> for IRInfo {
         use self::IROp::*;
         match op {
             Add => IRInfo::new("ADD", IRType::RegReg),
-            Sub => IRInfo::new("SUB", IRType::RegReg),
-            Mul => IRInfo::new("MUL", IRType::RegReg),
+            Call(_, _, _) => IRInfo::new("CALL", IRType::Call),
             Div => IRInfo::new("DIV", IRType::RegReg),
             Imm => IRInfo::new("MOV", IRType::RegImm),
-            SubImm => IRInfo::new("SUB", IRType::RegImm),
-            Mov => IRInfo::new("MOV", IRType::RegReg),
-            Return => IRInfo::new("RET", IRType::Reg),
-            Call(_, _, _) => IRInfo::new("CALL", IRType::Call),
+            Jmp => IRInfo::new("JMP", IRType::Jmp),
+            Kill => IRInfo::new("KILL", IRType::Reg),
             Label => IRInfo::new("", IRType::Label),
             LT => IRInfo::new("LT", IRType::RegReg),
-            Jmp => IRInfo::new("JMP", IRType::Jmp),
-            Unless => IRInfo::new("UNLESS", IRType::RegLabel),
-            Load => IRInfo::new("LOAD", IRType::RegReg),
-            Store => IRInfo::new("STORE", IRType::RegReg),
-            Kill => IRInfo::new("KILL", IRType::Reg),
-            SaveArgs => IRInfo::new("SAVE_ARGS", IRType::Imm),
+            Load32 => IRInfo::new("LOAD32", IRType::RegReg),
+            Load64 => IRInfo::new("LOAD64", IRType::RegReg),
+            Mov => IRInfo::new("MOV", IRType::RegReg),
+            Mul => IRInfo::new("MUL", IRType::RegReg),
             Nop => IRInfo::new("NOP", IRType::Noarg),
+            Return => IRInfo::new("RET", IRType::Reg),
+            Store32 => IRInfo::new("STORE32", IRType::RegReg),
+            Store64 => IRInfo::new("STORE64", IRType::RegReg),
+            Store32Arg => IRInfo::new("STORE32_ARG", IRType::ImmImm),
+            Store64Arg => IRInfo::new("STORE64_ARG", IRType::ImmImm),
+            Sub => IRInfo::new("SUB", IRType::RegReg),
+            SubImm => IRInfo::new("SUB", IRType::RegImm),
+            Unless => IRInfo::new("UNLESS", IRType::RegLabel),
         }
     }
 }
@@ -131,6 +138,7 @@ impl fmt::Display for IR {
             Jmp => write!(f, "  {} .L{}", info.name, lhs),
             RegReg => write!(f, "  {} r{}, r{}", info.name, lhs, self.rhs.unwrap()),
             RegImm => write!(f, "  {} r{}, {}", info.name, lhs, self.rhs.unwrap()),
+            ImmImm => write!(f, "  {} {}, {}", info.name, lhs, self.rhs.unwrap()),
             RegLabel => write!(f, "  {} r{}, .L{}", info.name, lhs, self.rhs.unwrap()),
             Call => {
                 match self.op {
@@ -200,6 +208,7 @@ fn label(x: Option<usize>) {
 
 fn gen_lval(node: Node) -> Option<usize> {
     match node.op {
+        NodeType::Deref(expr) => gen_expr(*expr),
         NodeType::Lvar => {
             let r = Some(*NREG.lock().unwrap());
             *NREG.lock().unwrap() += 1;
@@ -263,8 +272,12 @@ fn gen_expr(node: Node) -> Option<usize> {
             return r1;
         }
         NodeType::Lvar => {
+            let ty = node.ty.ty.clone();
             let r = gen_lval(node);
-            add(IROp::Load, r, r);
+            match ty {
+                Ctype::Ptr(_) => add(IROp::Load64, r, r),
+                _ => add(IROp::Load32, r, r),
+            }
             return r;
         }
         NodeType::Call(name, args) => {
@@ -283,9 +296,10 @@ fn gen_expr(node: Node) -> Option<usize> {
             }
             return r;
         }
+        NodeType::Addr(expr) => gen_lval(*expr),
         NodeType::Deref(expr) => {
             let r = gen_expr(*expr);
-            add(IROp::Load, r, r);
+            add(IROp::Load64, r, r);
             return r;
         }
         NodeType::BinOp(op, lhs, rhs) => {
@@ -293,7 +307,10 @@ fn gen_expr(node: Node) -> Option<usize> {
                 TokenType::Equal => {
                     let rhs = gen_expr(*rhs);
                     let lhs = gen_lval(*lhs);
-                    add(IROp::Store, lhs, rhs);
+                    match node.ty.ty {
+                        Ctype::Ptr(_) => add(IROp::Store64, lhs, rhs),
+                        _ => add(IROp::Store32, lhs, rhs),
+                    }
                     kill(rhs);
                     return lhs;
                 }
@@ -331,7 +348,10 @@ fn gen_stmt(node: Node) {
                 *NREG.lock().unwrap() += 1;
                 add(IROp::Mov, lhs, Some(0));
                 add(IROp::SubImm, lhs, Some(node.offset));
-                add(IROp::Store, lhs, rhs);
+                match node.ty.ty {
+                    Ctype::Ptr(_) => add(IROp::Store64, lhs, rhs),
+                    _ => add(IROp::Store32, lhs, rhs),
+                }
                 kill(lhs);
                 kill(rhs);
             }
@@ -398,15 +418,19 @@ fn gen_stmt(node: Node) {
 
 pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
     let mut v = vec![];
-    let len = nodes.len();
     for node in nodes {
         match node.op {
             NodeType::Func(name, args, body) => {
                 *CODE.lock().unwrap() = vec![];
                 *NREG.lock().unwrap() = 1;
 
-                if len > 0 {
-                    add(IROp::SaveArgs, Some(args.len()), None);
+                for i in 0..args.len() {
+                    let arg = &args[i];
+                    let op = match arg.ty.ty {
+                        Ctype::Ptr(_) => IROp::Store64Arg,
+                        _ => IROp::Store32Arg,
+                    };
+                    add(op, Some(arg.offset), Some(i));
                 }
                 gen_stmt(*body);
 

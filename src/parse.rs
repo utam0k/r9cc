@@ -35,6 +35,7 @@ pub enum NodeType {
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
     For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
+    Addr(Box<Node>), // address-of operator("&"), expr
     Deref(Box<Node>), // pointer dereference ("*"), expr
     Logand(Box<Node>, Box<Node>), // left-hand, right-hand
     Logor(Box<Node>, Box<Node>), // left-hand, right-hand
@@ -49,6 +50,7 @@ pub enum NodeType {
 pub enum Ctype {
     Int,
     Ptr(Box<Type>), // ptr of
+    Ary(Box<Type>, usize), // ary of, len
 }
 
 impl Default for Ctype {
@@ -69,12 +71,10 @@ impl Default for Type {
 }
 
 impl Type {
-    fn new(ty: Ctype) -> Self {
+    pub fn new(ty: Ctype) -> Self {
         Type { ty: ty }
     }
 }
-
-
 
 #[derive(Debug, Clone)]
 pub struct Node {
@@ -89,7 +89,7 @@ pub struct Node {
 }
 
 impl Node {
-    fn new(op: NodeType) -> Self {
+    pub fn new(op: NodeType) -> Self {
         Self {
             op: op,
             ty: Box::new(Type::default()),
@@ -261,11 +261,31 @@ fn ctype(tokens: &Vec<Token>, pos: &mut usize) -> Type {
 }
 
 fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Node {
-    let ty = Box::new(ctype(tokens, pos));
+    // Read the first half of type name (e.g. `int *`).
+    let mut ty = Box::new(ctype(tokens, pos));
+
     let t = &tokens[*pos];
+    // Read an identifier.
     if let TokenType::Ident(ref name) = t.ty {
         *pos += 1;
         let init: Option<Box<Node>>;
+
+        // Read the second half of type name (e.g. `[3][5]`).
+        let mut ary_size: Vec<usize> = vec![];
+        while consume(TokenType::LeftBracket, tokens, pos) {
+            let len = term(tokens, pos);
+            if let NodeType::Num(n) = len.op {
+                ary_size.push(n as usize);
+                expect(TokenType::RightBracket, &tokens[*pos], pos);
+            } else {
+                panic!("number expected");
+            }
+        }
+        for val in ary_size {
+            ty = Box::new(Type::new(Ctype::Ary(ty, val)));
+        }
+
+        // Read an initializer.
         if consume(TokenType::Equal, tokens, pos) {
             init = Some(Box::new(assign(tokens, pos)));
         } else {

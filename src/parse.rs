@@ -39,7 +39,8 @@ pub enum NodeType {
     Deref(Box<Node>), // pointer dereference ("*"), expr
     Logand(Box<Node>, Box<Node>), // left-hand, right-hand
     Logor(Box<Node>, Box<Node>), // left-hand, right-hand
-    Return(Box<Node>), // stmt
+    Return(Box<Node>), // "return", stmt
+    Sizeof(Box<Node>), // "sizeof", expr
     Call(String, Vec<Node>), // Function call(name, args)
     Func(String, Vec<Node>, Box<Node>), // Function definition(name, args, body)
     ExprStmt(Box<Node>), // expresson stmt
@@ -140,6 +141,9 @@ fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     }
     if consume(TokenType::And, tokens, pos) {
         return Node::new(NodeType::Addr(Box::new(mul(tokens, pos))));
+    }
+    if consume(TokenType::Sizeof, tokens, pos) {
+        return Node::new(NodeType::Sizeof(Box::new(unary(tokens, pos))));
     }
     term(tokens, pos)
 }

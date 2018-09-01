@@ -1,5 +1,6 @@
 use parse::{Node, NodeType, Type, Ctype};
 use token::TokenType;
+use util::size_of;
 
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -17,15 +18,6 @@ macro_rules! matches(
 lazy_static!{
     static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
     static ref VARS: Mutex<HashMap<String, Var>> = Mutex::new(HashMap::new());
-}
-
-pub fn size_of(ty: &Type) -> usize {
-    use self::Ctype::*;
-    match ty.ty {
-        Int => 4,
-        Ptr(_) => 8,
-        Ary(ref ary_of, len) => size_of(&*ary_of) * len,
-    }
 }
 
 fn swap(p: &mut Box<Node>, q: &mut Box<Node>) {
@@ -155,6 +147,12 @@ fn walk(mut node: Node, decay: bool) -> Node {
             node.op = Deref(expr);
         }
         Return(expr) => node.op = Return(Box::new(walk(*expr, true))),
+        Sizeof(mut expr) => {
+            expr = Box::new(walk(*expr, false));
+
+            node.op = Num(size_of(&*expr.ty) as i32);
+            node.ty.ty = Ctype::Int;
+        }
         Call(name, args) => {
             let mut new_args = vec![];
             for arg in args {

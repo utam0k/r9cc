@@ -4,6 +4,7 @@ pub mod parse;
 pub mod regalloc;
 pub mod token;
 pub mod sema;
+mod util;
 
 #[macro_use]
 extern crate lazy_static;

@@ -25,6 +25,7 @@ pub enum TokenType {
     Logor, // ||
     Logand, // &&
     Return, // "return"
+    Sizeof, // "sizeof"
     Colon, // ,
 }
 
@@ -67,12 +68,13 @@ impl Symbol {
 }
 
 lazy_static! {
-    static ref SYMBOLS: [Symbol; 7] = [
+    static ref SYMBOLS: [Symbol; 8] = [
         Symbol::new("else" , TokenType::Else),
         Symbol::new("for" , TokenType::For),
         Symbol::new("if" , TokenType::If),
         Symbol::new("int" , TokenType::Int),
         Symbol::new("return" , TokenType::Return),
+        Symbol::new("sizeof" , TokenType::Sizeof),
         Symbol::new("&&", TokenType::Logand),
         Symbol::new("||", TokenType::Logor),
     ];

@@ -3,7 +3,7 @@
 
 use parse::{Node, NodeType, Ctype};
 use token::TokenType;
-use sema::size_of;
+use util::size_of;
 
 use std::sync::Mutex;
 use std::fmt;

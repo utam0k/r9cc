@@ -59,7 +59,7 @@ impl Default for Ctype {
 
 #[derive(Debug, Clone)]
 pub struct Type {
-    ty: Ctype,
+    pub ty: Ctype,
 }
 
 impl Default for Type {

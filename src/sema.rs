@@ -1,8 +1,9 @@
-use parse::{Node, NodeType, Type};
+use parse::{Node, NodeType, Type, Ctype};
 use token::TokenType;
 
 use std::sync::Mutex;
 use std::collections::HashMap;
+use std::mem;
 
 macro_rules! matches(
     ($e:expr, $p:pat) => (
@@ -16,6 +17,18 @@ macro_rules! matches(
 lazy_static!{
     static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
     static ref VARS: Mutex<HashMap<String, Var>> = Mutex::new(HashMap::new());
+}
+
+pub fn size_of(ty: &Type) -> usize {
+    use self::Ctype::*;
+    match ty.ty {
+        Int => 4,
+        Ptr(_) => 8,
+    }
+}
+
+fn swap(p: &mut Box<Node>, q: &mut Box<Node>) {
+    mem::swap(p, q);
 }
 
 pub struct Var {
@@ -76,11 +89,20 @@ fn walk(mut node: Node) -> Node {
                 Box::new(walk(*body)),
             );
         }
-        BinOp(token_type, mut lhs, rhs) => {
+        BinOp(token_type, mut lhs, mut rhs) => {
             match token_type {
-                TokenType::Plus => {
+                TokenType::Plus | TokenType::Minus => {
                     lhs = Box::new(walk(*lhs));
-                    node.op = BinOp(token_type, lhs.clone(), Box::new(walk(*rhs)));
+                    rhs = Box::new(walk(*rhs));
+
+                    if matches!(rhs.ty.ty , Ctype::Ptr(_)) {
+                        swap(&mut lhs, &mut rhs);
+                    }
+                    if matches!(rhs.ty.ty , Ctype::Ptr(_)) {
+                        panic!("'pointer {:?} pointer' is not defined", node.op)
+                    }
+
+                    node.op = BinOp(token_type, lhs.clone(), rhs);
                     node.ty = lhs.ty;
                 }
                 _ => {
@@ -100,8 +122,13 @@ fn walk(mut node: Node) -> Node {
             node.op = Logor(lhs.clone(), Box::new(walk(*rhs)));
             node.ty = lhs.ty;
         }
-        Deref(expr) => {
-            node.op = Deref(Box::new(walk(*expr)));
+        Deref(mut expr) => {
+            expr = Box::new(walk(*expr));
+            match expr.ty.ty {
+                Ctype::Ptr(ref ptr_of) => node.ty = ptr_of.clone(),
+                _ => panic!("operand must be a pointer"),
+            }
+            node.op = Deref(expr);
         }
         Return(expr) => {
             node.op = Return(Box::new(walk(*expr)));

@@ -1,8 +1,9 @@
 // Compile AST to intermediate code that has infinite number of registers.
 // Base pointer is always assigned to r0.
 
-use parse::{Node, NodeType};
+use parse::{Node, NodeType, Ctype};
 use token::TokenType;
+use sema::size_of;
 
 use std::sync::Mutex;
 use std::fmt;
@@ -205,6 +206,15 @@ fn gen_lval(code: &mut Vec<IR>, node: Node) -> Option<usize> {
     }
 }
 
+fn gen_binop(ty: IROp, lhs: Box<Node>, rhs: Box<Node>, code: &mut Vec<IR>) -> Option<usize> {
+    let r1 = gen_expr(code, *lhs);
+    let r2 = gen_expr(code, *rhs);
+
+    code.push(IR::new(ty, r1, r2));
+    kill(r2, code);
+    return r1;
+}
+
 fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
     match node.op {
         NodeType::Num(val) => {
@@ -282,15 +292,25 @@ fn gen_expr(code: &mut Vec<IR>, node: Node) -> Option<usize> {
                     kill(rhs, code);
                     return lhs;
                 }
-                _ => {
-                    // gen_binop
-                    let lhs = gen_expr(code, *lhs);
-                    let rhs = gen_expr(code, *rhs);
+                TokenType::Plus | TokenType::Minus => {
+                    let insn = IROp::from(op);
+                    if let Ctype::Ptr(ref ptr_of) = lhs.ty.ty.clone() {
+                        let rhs = gen_expr(code, *rhs);
+                        let r = Some(*NREG.lock().unwrap());
+                        *NREG.lock().unwrap() += 1;
+                        code.push(IR::new(IROp::Imm, r, Some(size_of(ptr_of))));
+                        code.push(IR::new(IROp::Mul, rhs, r));
+                        kill(r, code);
 
-                    code.push(IR::new(IROp::from(op), lhs, rhs));
-                    kill(rhs, code);
-                    return lhs;
+                        let lhs = gen_expr(code, *lhs);
+                        code.push(IR::new(insn, lhs, rhs));
+                        kill(rhs, code);
+                        lhs
+                    } else {
+                        gen_binop(insn, lhs, rhs, code)
+                    }
                 }
+                _ => gen_binop(IROp::from(op), lhs, rhs, code),
             }
         }
         e => unreachable!("{:?}", e),

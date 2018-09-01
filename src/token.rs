@@ -78,7 +78,7 @@ pub struct Token {
     pub input: String, // Token string (for error reporting)
 }
 
-pub fn scan(mut p: String) -> Vec<Token> {
+pub fn tokenize(mut p: String) -> Vec<Token> {
     // Tokenized input is stored to this vec.
     let mut tokens: Vec<Token> = vec![];
 
@@ -103,7 +103,7 @@ pub fn scan(mut p: String) -> Vec<Token> {
             _ => (),
         }
 
-        // Multi-letter token
+        // Multi-letter symbol or keyword
         for symbol in SYMBOLS.iter() {
             let name = symbol.name;
             let len = name.len();
@@ -149,9 +149,17 @@ pub fn scan(mut p: String) -> Vec<Token> {
 
         // Number
         if c.is_ascii_digit() {
-            let n = strtol(&mut p);
+            let mut val: i32 = 0;
+            for c in p.clone().chars() {
+                if !c.is_ascii_digit() {
+                    break;
+                }
+                val = val * 10 + c.to_digit(10).unwrap() as i32;
+                p = p.split_off(1); // p++
+            }
+
             let token = Token {
-                ty: TokenType::Num(n.unwrap() as i32),
+                ty: TokenType::Num(val as i32),
                 input: p.clone(),
             };
             tokens.push(token);
@@ -161,25 +169,4 @@ pub fn scan(mut p: String) -> Vec<Token> {
         panic!("cannot tokenize: {}\n", p);
     }
     tokens
-}
-
-pub fn tokenize(p: String) -> Vec<Token> {
-    scan(p)
-}
-
-fn strtol(s: &mut String) -> Option<i64> {
-    if s.is_empty() {
-        return None;
-    }
-
-    let mut pos = 0;
-    for c in s.chars() {
-        if !c.is_ascii_digit() {
-            break;
-        }
-        pos += 1;
-    }
-
-    let t: String = s.drain(..pos).collect();
-    Some(t.parse::<i64>().unwrap())
 }

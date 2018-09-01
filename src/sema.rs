@@ -57,7 +57,7 @@ fn walk(mut node: Node, decay: bool) -> Node {
     use self::NodeType::*;
     let op = node.op.clone();
     match op {
-        Num(_) => return node,
+        Num(_) => (),
         Ident(ref name) => {
             if let Some(var) = VARS.lock().unwrap().get(name) {
                 node.op = NodeType::Lvar;
@@ -65,12 +65,10 @@ fn walk(mut node: Node, decay: bool) -> Node {
                 if decay {
                     if let Ctype::Ary(ref ary_of, _) = var.ty.ty {
                         node = addr_of(node, *ary_of.clone());
-                    } else {
-                        node.ty = var.ty.clone();
+                        return node;
                     }
-                } else {
-                    node.ty = var.ty.clone();
                 }
+                node.ty = var.ty.clone();
             } else {
                 panic!("undefined variable: {}", name);
             }

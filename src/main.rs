@@ -2,7 +2,7 @@ extern crate r9cc;
 
 use r9cc::gen_x86::gen_x86;
 use r9cc::gen_ir::{gen_ir, dump_ir};
-use r9cc::parse::Node;
+use r9cc::parse::parse;
 use r9cc::regalloc::alloc_regs;
 use r9cc::token::tokenize;
 use r9cc::sema::sema;
@@ -40,7 +40,7 @@ fn main() {
         println!("tokens: {:?}", tokens);
     }
 
-    let mut nodes = Node::parse(&tokens);
+    let mut nodes = parse(&tokens);
     nodes = sema(nodes);
     let mut fns = gen_ir(nodes);
 

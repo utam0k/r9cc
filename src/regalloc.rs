@@ -3,12 +3,9 @@ use REGS_N;
 
 use std::sync::Mutex;
 
-// Need reserving initialized memory area in order to use set_len().
-const INIT_ARRAY_SIZE: usize = 10;
-
 lazy_static! {
     static ref USED: Mutex<[bool; REGS_N]> = Mutex::new([false; REGS_N]);
-    static ref REG_MAP: Mutex<Vec<Option<usize>>> = Mutex::new(vec![None; INIT_ARRAY_SIZE]);
+    static ref REG_MAP: Mutex<Vec<Option<usize>>> = Mutex::new(vec![]);
 }
 
 fn used_get(i: usize) -> bool {
@@ -51,14 +48,7 @@ fn visit(irv: &mut Vec<IR>) {
     reg_map_set(0, 0);
     used_set(0, true);
 
-    let irv_len = irv.len();
-    if irv_len > INIT_ARRAY_SIZE {
-        unsafe {
-            REG_MAP.lock().unwrap().set_len(irv_len);
-        }
-    }
-
-    for i in 0..irv_len {
+    for i in 0..irv.len() {
         let mut ir = irv[i].clone();
         let info = &IRInfo::from(&ir.op);
 
@@ -96,7 +86,7 @@ fn visit(irv: &mut Vec<IR>) {
 
 pub fn alloc_regs(fns: &mut Vec<Function>) {
     for f in fns {
-        *REG_MAP.lock().unwrap() = vec![None; INIT_ARRAY_SIZE];
+        *REG_MAP.lock().unwrap() = vec![None; f.ir.len()];
         *USED.lock().unwrap() = [false; REGS_N];
 
         visit(&mut f.ir);

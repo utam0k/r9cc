@@ -100,6 +100,16 @@ impl Node {
     }
 }
 
+fn new_binop(ty: TokenType, lhs: Node, rhs: Node) -> Node {
+    Node::new(NodeType::BinOp(ty, Box::new(lhs), Box::new(rhs)))
+}
+
+macro_rules! new_expr(
+    ($i:path, $expr:expr) => (
+        Node::new($i(Box::new($expr)))
+    )
+);
+
 fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let t = &tokens[*pos];
     *pos += 1;
@@ -138,12 +148,10 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 fn postfix(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = primary(tokens, pos);
     while consume(TokenType::LeftBracket, tokens, pos) {
-        let expr = Node::new(NodeType::BinOp(
-            TokenType::Plus,
-            Box::new(lhs),
-            Box::new(primary(tokens, pos)),
-        ));
-        lhs = Node::new(NodeType::Deref(Box::new(expr)));
+        lhs = new_expr!(
+            NodeType::Deref,
+            new_binop(TokenType::Plus, lhs, primary(tokens, pos))
+        );
         expect(TokenType::RightBracket, &tokens[*pos], pos);
     }
     lhs
@@ -151,13 +159,13 @@ fn postfix(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
 fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     if consume(TokenType::Mul, tokens, pos) {
-        return Node::new(NodeType::Deref(Box::new(mul(tokens, pos))));
+        return new_expr!(NodeType::Deref, mul(tokens, pos));
     }
     if consume(TokenType::And, tokens, pos) {
-        return Node::new(NodeType::Addr(Box::new(mul(tokens, pos))));
+        return new_expr!(NodeType::Addr, mul(tokens, pos));
     }
     if consume(TokenType::Sizeof, tokens, pos) {
-        return Node::new(NodeType::Sizeof(Box::new(unary(tokens, pos))));
+        return new_expr!(NodeType::Sizeof, mul(tokens, pos));
     }
     postfix(tokens, pos)
 }
@@ -175,11 +183,7 @@ fn mul(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             return lhs;
         }
         *pos += 1;
-        lhs = Node::new(NodeType::BinOp(
-            t.ty.clone(),
-            Box::new(lhs),
-            Box::new(unary(&tokens, pos)),
-        ));
+        lhs = new_binop(t.ty.clone(), lhs, unary(&tokens, pos));
     }
 }
 
@@ -197,7 +201,7 @@ fn add(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         }
         *pos += 1;
         let rhs = mul(&tokens, pos);
-        lhs = Node::new(NodeType::BinOp(t.ty.clone(), Box::new(lhs), Box::new(rhs)));
+        lhs = new_binop(t.ty.clone(), lhs, rhs);
     }
 }
 
@@ -207,21 +211,13 @@ fn rel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         let t = &tokens[*pos];
         if t.ty == TokenType::LeftAngleBracket {
             *pos += 1;
-            lhs = Node::new(NodeType::BinOp(
-                TokenType::LeftAngleBracket,
-                Box::new(lhs),
-                Box::new(add(tokens, pos)),
-            ));
+            lhs = new_binop(TokenType::LeftAngleBracket, lhs, add(tokens, pos));
             continue;
         }
 
         if t.ty == TokenType::RightAngleBracket {
             *pos += 1;
-            lhs = Node::new(NodeType::BinOp(
-                TokenType::LeftAngleBracket,
-                Box::new(add(tokens, pos)),
-                Box::new(lhs),
-            ));
+            lhs = new_binop(TokenType::LeftAngleBracket, add(tokens, pos), lhs);
             continue;
         }
 
@@ -257,11 +253,7 @@ fn logor(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 fn assign(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let lhs = logor(tokens, pos);
     if consume(TokenType::Equal, tokens, pos) {
-        return Node::new(NodeType::BinOp(
-            TokenType::Equal,
-            Box::new(lhs),
-            Box::new(logor(tokens, pos)),
-        ));
+        return new_binop(TokenType::Equal, lhs, logor(tokens, pos));
     }
     return lhs;
 }
@@ -341,8 +333,9 @@ fn param(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
 fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let expr = assign(tokens, pos);
+    let node = new_expr!(NodeType::ExprStmt, expr);
     expect(TokenType::Semicolon, &tokens[*pos], pos);
-    Node::new(NodeType::ExprStmt(Box::new(expr)))
+    node
 }
 
 fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {

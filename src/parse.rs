@@ -443,6 +443,16 @@ fn function(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     }
 }
 
+/* e.g.
+ function -> param
++---------+
+int main() {     ; +-+                        int   []         2
+  int ary[2];    ;   |               +->stmt->decl->read_array->primary
+  ary[0]=1;      ;   | compound_stmt-+->stmt->...                ary
+  return ary[0]; ;   |               +->stmt->assign->postfix-+->primary
+}                ; +-+                  return        []      +->primary
+                                                                 0
+*/
 pub fn parse(tokens: &Vec<Token>) -> Vec<Node> {
     let mut pos = 0;
 

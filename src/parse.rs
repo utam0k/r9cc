@@ -100,7 +100,7 @@ impl Node {
     }
 }
 
-fn term(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let t = &tokens[*pos];
     *pos += 1;
     match t.ty {
@@ -135,6 +135,20 @@ fn term(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     }
 }
 
+fn postfix(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let mut lhs = primary(tokens, pos);
+    while consume(TokenType::LeftBracket, tokens, pos) {
+        let expr = Node::new(NodeType::BinOp(
+            TokenType::Plus,
+            Box::new(lhs),
+            Box::new(primary(tokens, pos)),
+        ));
+        lhs = Node::new(NodeType::Deref(Box::new(expr)));
+        expect(TokenType::RightBracket, &tokens[*pos], pos);
+    }
+    lhs
+}
+
 fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     if consume(TokenType::Mul, tokens, pos) {
         return Node::new(NodeType::Deref(Box::new(mul(tokens, pos))));
@@ -145,7 +159,7 @@ fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     if consume(TokenType::Sizeof, tokens, pos) {
         return Node::new(NodeType::Sizeof(Box::new(unary(tokens, pos))));
     }
-    term(tokens, pos)
+    postfix(tokens, pos)
 }
 
 fn mul(tokens: &Vec<Token>, pos: &mut usize) -> Node {
@@ -267,6 +281,23 @@ fn ctype(tokens: &Vec<Token>, pos: &mut usize) -> Type {
     }
 }
 
+fn read_array(mut ty: Box<Type>, tokens: &Vec<Token>, pos: &mut usize) -> Box<Type> {
+    let mut v: Vec<usize> = vec![];
+    while consume(TokenType::LeftBracket, tokens, pos) {
+        let len = primary(tokens, pos);
+        if let NodeType::Num(n) = len.op {
+            v.push(n as usize);
+            expect(TokenType::RightBracket, &tokens[*pos], pos);
+        } else {
+            panic!("number expected");
+        }
+    }
+    for val in v {
+        ty = Box::new(Type::new(Ctype::Ary(ty, val)));
+    }
+    ty
+}
+
 fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     // Read the first half of type name (e.g. `int *`).
     let mut ty = Box::new(ctype(tokens, pos));
@@ -278,19 +309,7 @@ fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         let init: Option<Box<Node>>;
 
         // Read the second half of type name (e.g. `[3][5]`).
-        let mut ary_size: Vec<usize> = vec![];
-        while consume(TokenType::LeftBracket, tokens, pos) {
-            let len = term(tokens, pos);
-            if let NodeType::Num(n) = len.op {
-                ary_size.push(n as usize);
-                expect(TokenType::RightBracket, &tokens[*pos], pos);
-            } else {
-                panic!("number expected");
-            }
-        }
-        for val in ary_size {
-            ty = Box::new(Type::new(Ctype::Ary(ty, val)));
-        }
+        ty = read_array(ty, tokens, pos);
 
         // Read an initializer.
         if consume(TokenType::Equal, tokens, pos) {

@@ -85,10 +85,13 @@ pub enum IROp {
     LT,
     Jmp,
     Unless,
+    Load8,
     Load32,
     Load64,
+    Store8,
     Store32,
     Store64,
+    Store8Arg,
     Store32Arg,
     Store64Arg,
     Kill,
@@ -107,14 +110,17 @@ impl<'a> From<&'a IROp> for IRInfo {
             Kill => IRInfo::new("KILL", IRType::Reg),
             Label => IRInfo::new("", IRType::Label),
             LT => IRInfo::new("LT", IRType::RegReg),
+            Load8 => IRInfo::new("LOAD8", IRType::RegReg),
             Load32 => IRInfo::new("LOAD32", IRType::RegReg),
             Load64 => IRInfo::new("LOAD64", IRType::RegReg),
             Mov => IRInfo::new("MOV", IRType::RegReg),
             Mul => IRInfo::new("MUL", IRType::RegReg),
             Nop => IRInfo::new("NOP", IRType::Noarg),
             Return => IRInfo::new("RET", IRType::Reg),
+            Store8 => IRInfo::new("STORE8", IRType::RegReg),
             Store32 => IRInfo::new("STORE32", IRType::RegReg),
             Store64 => IRInfo::new("STORE64", IRType::RegReg),
+            Store8Arg => IRInfo::new("STORE8_ARG", IRType::ImmImm),
             Store32Arg => IRInfo::new("STORE32_ARG", IRType::ImmImm),
             Store64Arg => IRInfo::new("STORE64_ARG", IRType::ImmImm),
             Sub => IRInfo::new("SUB", IRType::RegReg),
@@ -275,8 +281,9 @@ fn gen_expr(node: Node) -> Option<usize> {
             let ty = node.ty.ty.clone();
             let r = gen_lval(node);
             match ty {
-                Ctype::Ptr(_) => add(IROp::Load64, r, r),
-                _ => add(IROp::Load32, r, r),
+                Ctype::Char => add(IROp::Load8, r, r),
+                Ctype::Int => add(IROp::Load32, r, r),
+                _ => add(IROp::Load64, r, r),
             }
             return r;
         }
@@ -308,8 +315,9 @@ fn gen_expr(node: Node) -> Option<usize> {
                     let rhs = gen_expr(*rhs);
                     let lhs = gen_lval(*lhs);
                     match node.ty.ty {
-                        Ctype::Ptr(_) => add(IROp::Store64, lhs, rhs),
-                        _ => add(IROp::Store32, lhs, rhs),
+                        Ctype::Char => add(IROp::Store8, lhs, rhs),
+                        Ctype::Int => add(IROp::Store32, lhs, rhs),
+                        _ => add(IROp::Store64, lhs, rhs),
                     }
                     kill(rhs);
                     return lhs;
@@ -349,8 +357,9 @@ fn gen_stmt(node: Node) {
                 add(IROp::Mov, lhs, Some(0));
                 add(IROp::SubImm, lhs, Some(node.offset));
                 match node.ty.ty {
-                    Ctype::Ptr(_) => add(IROp::Store64, lhs, rhs),
-                    _ => add(IROp::Store32, lhs, rhs),
+                    Ctype::Char => add(IROp::Store8, lhs, rhs),
+                    Ctype::Int => add(IROp::Store32, lhs, rhs),
+                    _ => add(IROp::Store64, lhs, rhs),
                 }
                 kill(lhs);
                 kill(rhs);
@@ -427,8 +436,9 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
                 for i in 0..args.len() {
                     let arg = &args[i];
                     let op = match arg.ty.ty {
-                        Ctype::Ptr(_) => IROp::Store64Arg,
-                        _ => IROp::Store32Arg,
+                        Ctype::Char => IROp::Store8Arg,
+                        Ctype::Int => IROp::Store32Arg,
+                        _ => IROp::Store64Arg,
                     };
                     add(op, Some(arg.offset), Some(i));
                 }

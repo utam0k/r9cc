@@ -22,8 +22,12 @@ fn consume(ty: TokenType, tokens: &Vec<Token>, pos: &mut usize) -> bool {
     return true;
 }
 
-fn is_typename(t: &Token) -> bool {
-    t.ty == TokenType::Int
+fn get_type(t: &Token) -> Option<Type> {
+    match t.ty {
+        TokenType::Int => Some(Type::new(Ctype::Int)),
+        TokenType::Char => Some(Type::new(Ctype::Char)),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +54,7 @@ pub enum NodeType {
 #[derive(Debug, Clone)]
 pub enum Ctype {
     Int,
+    Char,
     Ptr(Box<Type>), // ptr of
     Ary(Box<Type>, usize), // ary of, len
 }
@@ -260,14 +265,13 @@ fn assign(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
 fn ctype(tokens: &Vec<Token>, pos: &mut usize) -> Type {
     let t = &tokens[*pos];
-    if let TokenType::Int = t.ty {
+    if let Some(mut ty) = get_type(t) {
         *pos += 1;
 
-        let mut ty = Ctype::Int;
         while consume(TokenType::Mul, tokens, pos) {
-            ty = Ctype::Ptr(Box::new(Type::new(ty)));
+            ty = Type::new(Ctype::Ptr(Box::new(ty)));
         }
-        Type::new(ty)
+        ty
     } else {
         panic!("typename expected, but got {}", t.input);
     }
@@ -340,7 +344,7 @@ fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
 fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     match tokens[*pos].ty {
-        TokenType::Int => return decl(tokens, pos),
+        TokenType::Int | TokenType::Char => return decl(tokens, pos),
         TokenType::If => {
             let mut els = None;
             *pos += 1;
@@ -356,12 +360,10 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         TokenType::For => {
             *pos += 1;
             expect(TokenType::LeftParen, &tokens[*pos], pos);
-            let init: Box<Node>;
-            if is_typename(&tokens[*pos]) {
-                init = Box::new(decl(tokens, pos));
-            } else {
-                init = Box::new(expr_stmt(tokens, pos));
-            }
+            let init: Box<Node> = match get_type(&tokens[*pos]) {
+                Some(_) => Box::new(decl(tokens, pos)),
+                _ => Box::new(expr_stmt(tokens, pos)),
+            };
             let cond = Box::new(assign(&tokens, pos));
             expect(TokenType::Semicolon, &tokens[*pos], pos);
             let inc = Box::new(assign(&tokens, pos));

@@ -37,7 +37,9 @@ fn main() {
     let tokens = tokenize(input);
 
     if dump_tokens {
-        println!("tokens: {:?}", tokens);
+        for token in &tokens {
+            println!("{:?}", token.ty);
+        }
     }
 
     let mut nodes = parse(&tokens);

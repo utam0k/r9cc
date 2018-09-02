@@ -5,6 +5,7 @@ use REGS32;
 
 use std::sync::Mutex;
 
+const ARGREG8: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
 const ARGREG32: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
 const ARGREG64: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
@@ -61,10 +62,13 @@ fn gen(f: Function) {
                 print!("  cmp {}, 0\n", REGS[lhs]);
                 print!("  je .L{}\n", ir.rhs.unwrap());
             }
+            Load8 => print!("  mov {}, [{}]\n", REGS8[lhs], REGS[ir.rhs.unwrap()]),
             Load32 => print!("  mov {}, [{}]\n", REGS32[lhs], REGS[ir.rhs.unwrap()]),
             Load64 => print!("  mov {}, [{}]\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            Store8 => print!("  mov [{}], {}\n", REGS[lhs], REGS8[ir.rhs.unwrap()]),
             Store32 => print!("  mov [{}], {}\n", REGS[lhs], REGS32[ir.rhs.unwrap()]),
             Store64 => print!("  mov [{}], {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            Store8Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG8[ir.rhs.unwrap()]),
             Store32Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG32[ir.rhs.unwrap()]),
             Store64Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG64[ir.rhs.unwrap()]),
             Add => print!("  add {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),

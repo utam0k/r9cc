@@ -4,6 +4,7 @@ pub enum TokenType {
     Num(i32), // Number literal
     Ident(String), // Identifier
     Int, // "int"
+    Char, // "char"
     Plus, // +
     Minus, // -
     Mul, // *
@@ -55,7 +56,7 @@ impl TokenType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Symbol {
     pub name: &'static str,
     pub ty: TokenType,
@@ -68,7 +69,8 @@ impl Symbol {
 }
 
 lazy_static! {
-    static ref SYMBOLS: [Symbol; 8] = [
+    static ref SYMBOLS: Vec<Symbol> = [
+        Symbol::new("char" , TokenType::Char),
         Symbol::new("else" , TokenType::Else),
         Symbol::new("for" , TokenType::For),
         Symbol::new("if" , TokenType::If),
@@ -77,7 +79,7 @@ lazy_static! {
         Symbol::new("sizeof" , TokenType::Sizeof),
         Symbol::new("&&", TokenType::Logand),
         Symbol::new("||", TokenType::Logor),
-    ];
+    ].to_vec();
 }
 
 // Token type

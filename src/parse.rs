@@ -159,7 +159,7 @@ fn postfix(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     while consume(TokenType::LeftBracket, tokens, pos) {
         lhs = new_expr!(
             NodeType::Deref,
-            new_binop(TokenType::Plus, lhs, primary(tokens, pos))
+            new_binop(TokenType::Plus, lhs, assign(tokens, pos))
         );
         expect(TokenType::RightBracket, &tokens[*pos], pos);
     }

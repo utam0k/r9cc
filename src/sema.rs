@@ -16,24 +16,33 @@ macro_rules! matches(
 );
 
 lazy_static!{
-    static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
+    static ref STRLABEL: Mutex<usize> = Mutex::new(0);
     static ref VARS: Mutex<HashMap<String, Var>> = Mutex::new(HashMap::new());
+    static ref STRINGS: Mutex<Vec<Node>> = Mutex::new(vec![]);
+    static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
 }
 
 fn swap(p: &mut Box<Node>, q: &mut Box<Node>) {
     mem::swap(p, q);
 }
 
+#[derive(Debug)]
+pub enum Scope {
+    Local(usize), // offset
+    Global(String), // name
+}
+
+#[derive(Debug)]
 pub struct Var {
     ty: Box<Type>,
-    offset: usize,
+    scope: Scope,
 }
 
 impl Var {
-    fn new(ty: Box<Type>, offset: usize) -> Self {
+    fn new(ty: Box<Type>, scope: Scope) -> Self {
         Var {
             ty: ty,
-            offset: offset,
+            scope: scope,
         }
     }
 }
@@ -50,10 +59,22 @@ fn walk(mut node: Node, decay: bool) -> Node {
     let op = node.op.clone();
     match op {
         Num(_) => (),
+        Str(str, mut name) => {
+            name = format!(".L.str{}", *STRLABEL.lock().unwrap());
+            *STRLABEL.lock().unwrap() += 1;
+            node.op = NodeType::Str(str, name.clone());
+            STRINGS.lock().unwrap().push(node.clone());
+
+            let mut ret = Node::new(NodeType::Gvar(name));
+            ret.ty = node.ty;
+            return walk(ret, decay);
+        }
         Ident(ref name) => {
             if let Some(var) = VARS.lock().unwrap().get(name) {
                 node.op = NodeType::Lvar;
-                node.offset = var.offset;
+                if let Scope::Local(offset) = var.scope {
+                    node.offset = offset;
+                }
                 if decay {
                     if let Ctype::Ary(ref ary_of, _) = var.ty.ty {
                         node = addr_of(node, *ary_of.clone());
@@ -65,13 +86,20 @@ fn walk(mut node: Node, decay: bool) -> Node {
                 panic!("undefined variable: {}", name);
             }
         }
+        Gvar(_) => {
+            if decay {
+                if let Ctype::Ary(ref ary_of, _) = node.ty.ty.clone() {
+                    return addr_of(node, *ary_of.clone());
+                }
+            }
+        }
         Vardef(name, init_may) => {
             *STACKSIZE.lock().unwrap() += size_of(&*node.ty);
             node.offset = *STACKSIZE.lock().unwrap();
 
             VARS.lock().unwrap().insert(
                 name.clone(),
-                Var::new(node.ty.clone(), *STACKSIZE.lock().unwrap()),
+                Var::new(node.ty.clone(), Scope::Local(*STACKSIZE.lock().unwrap())),
             );
 
             if let Some(mut init) = init_may {
@@ -163,12 +191,18 @@ fn walk(mut node: Node, decay: bool) -> Node {
             }
             node.op = Call(name, new_args);
         }
-        Func(name, args, body) => {
+        Func(name, args, body, stacksize, strings) => {
             let mut new_args = vec![];
             for arg in args {
                 new_args.push(walk(arg, true));
             }
-            node.op = Func(name, new_args, Box::new(walk(*body, true)));
+            node.op = Func(
+                name,
+                new_args,
+                Box::new(walk(*body, true)),
+                stacksize,
+                strings,
+            );
         }
         CompStmt(stmts) => {
             let mut new_stmts = vec![];
@@ -186,12 +220,21 @@ fn walk(mut node: Node, decay: bool) -> Node {
 pub fn sema(nodes: Vec<Node>) -> Vec<Node> {
     let mut new_nodes = vec![];
     for mut node in nodes {
-        assert!(matches!(node.op, NodeType::Func(_, _, _)));
+        assert!(matches!(node.op, NodeType::Func(_, _, _, _, _)));
 
         *VARS.lock().unwrap() = HashMap::new();
         *STACKSIZE.lock().unwrap() = 0;
+        *STRINGS.lock().unwrap() = vec![];
         let mut new = walk(node, true);
-        new.stacksize = *STACKSIZE.lock().unwrap();
+        if let NodeType::Func(name, args, body, _, _) = new.op {
+            new.op = NodeType::Func(
+                name,
+                args,
+                body,
+                *STACKSIZE.lock().unwrap(),
+                STRINGS.lock().unwrap().clone(),
+            )
+        }
         new_nodes.push(new);
     }
     new_nodes

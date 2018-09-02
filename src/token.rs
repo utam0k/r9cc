@@ -2,6 +2,7 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     Num(i32), // Number literal
+    Str(String), // String literal
     Ident(String), // Identifier
     Int, // "int"
     Char, // "char"
@@ -120,6 +121,31 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
             });
             p = p.split_off(len); // p += len
             continue 'outer;
+        }
+
+        // String literal
+        if c == '"' {
+            let mut len = 0;
+            p = p.split_off(1); // p ++
+            while let Some(c2) = p.chars().nth(len) {
+                if c2 == '"' {
+                    break;
+                }
+                len += 1;
+            }
+            if len >= p.len() {
+                panic!("premature end of input");
+            }
+
+            let p_c = p.clone();
+            let (str, _last) = p_c.split_at(len);
+            p = p.split_off(len + 1); // p += len + 1
+            let token = Token {
+                ty: TokenType::Str(str.to_string()),
+                input: p.clone(),
+            };
+            tokens.push(token);
+            continue;
         }
 
         // Single-letter token

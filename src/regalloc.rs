@@ -63,7 +63,7 @@ fn visit(irv: &mut Vec<IR>) {
         let info = &IRInfo::from(&ir.op);
 
         match info.ty {
-            Reg | RegImm | RegLabel => ir.lhs = Some(alloc(ir.lhs.unwrap())),
+            Reg | RegImm | RegLabel | LabelAddr => ir.lhs = Some(alloc(ir.lhs.unwrap())),
             RegReg => {
                 ir.lhs = Some(alloc(ir.lhs.unwrap()));
                 ir.rhs = Some(alloc(ir.rhs.unwrap()));

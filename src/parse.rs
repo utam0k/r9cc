@@ -33,9 +33,11 @@ fn get_type(t: &Token) -> Option<Type> {
 #[derive(Debug, Clone)]
 pub enum NodeType {
     Num(i32), // Number literal
+    Str(String, String), // String literal, (str, name)
     Ident(String), // Identifier
     Vardef(String, Option<Box<Node>>), // Variable definition, name = init
     Lvar, // Variable reference
+    Gvar(String), // Variable reference, name
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
     For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
@@ -46,7 +48,8 @@ pub enum NodeType {
     Return(Box<Node>), // "return", stmt
     Sizeof(Box<Node>), // "sizeof", expr
     Call(String, Vec<Node>), // Function call(name, args)
-    Func(String, Vec<Node>, Box<Node>), // Function definition(name, args, body)
+    // Function definition(name, args, body, stacksize, strings)
+    Func(String, Vec<Node>, Box<Node>, usize, Vec<Node>),
     ExprStmt(Box<Node>), // expresson stmt
     CompStmt(Vec<Node>), // Compound statement
 }
@@ -86,10 +89,6 @@ impl Type {
 pub struct Node {
     pub op: NodeType, // Node type
     pub ty: Box<Type>, // C type
-
-    // Function definition
-    pub stacksize: usize,
-
     // Local variable
     pub offset: usize,
 }
@@ -99,7 +98,6 @@ impl Node {
         Self {
             op: op,
             ty: Box::new(Type::default()),
-            stacksize: 0,
             offset: 0,
         }
     }
@@ -122,6 +120,12 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         TokenType::Num(val) => {
             let mut node = Node::new(NodeType::Num(val));
             node.ty = Box::new(Type::new(Ctype::Int));
+            node
+        }
+        TokenType::Str(ref str) => {
+            let l = str.len();
+            let mut node = Node::new(NodeType::Str(str.clone(), "".into()));
+            node.ty = Box::new(Type::new(Ctype::Ary(Box::new(Type::new(Ctype::Char)), l)));
             node
         }
         TokenType::Ident(ref name) => {
@@ -424,7 +428,13 @@ fn function(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
                     expect(TokenType::LeftBrace, &tokens[*pos], pos);
                     let body = compound_stmt(tokens, pos);
-                    Node::new(NodeType::Func(name.clone(), args, Box::new(body)))
+                    Node::new(NodeType::Func(
+                        name.clone(),
+                        args,
+                        Box::new(body),
+                        0,
+                        vec![],
+                    ))
                 }
                 _ => panic!("function name expected, but got {}", t.input),
             }

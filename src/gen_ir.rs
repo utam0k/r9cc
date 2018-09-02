@@ -15,7 +15,8 @@ lazy_static!{
 }
 
 fn add(op: IROp, lhs: Option<usize>, rhs: Option<usize>) {
-    CODE.lock().unwrap().push(IR::new(op, lhs, rhs));
+    let ir = IR::new(op, lhs, rhs);
+    CODE.lock().unwrap().push(ir)
 }
 
 #[derive(Clone, Debug)]
@@ -25,6 +26,7 @@ pub enum IRType {
     Imm,
     Jmp,
     Label,
+    LabelAddr,
     RegReg,
     RegImm,
     ImmImm,
@@ -58,14 +60,16 @@ pub struct Function {
     pub name: String,
     pub ir: Vec<IR>,
     pub stacksize: usize,
+    pub strings: Vec<Node>,
 }
 
 impl Function {
-    fn new(name: String, ir: Vec<IR>, stacksize: usize) -> Self {
+    fn new(name: String, ir: Vec<IR>, stacksize: usize, strings: Vec<Node>) -> Self {
         Function {
             name: name,
             ir: ir,
             stacksize: stacksize,
+            strings: strings,
         }
     }
 }
@@ -82,6 +86,7 @@ pub enum IROp {
     Return,
     Call(String, usize, [usize; 6]),
     Label,
+    LabelAddr(String),
     LT,
     Jmp,
     Unless,
@@ -109,6 +114,7 @@ impl<'a> From<&'a IROp> for IRInfo {
             Jmp => IRInfo::new("JMP", IRType::Jmp),
             Kill => IRInfo::new("KILL", IRType::Reg),
             Label => IRInfo::new("", IRType::Label),
+            LabelAddr(_) => IRInfo::new("LABEL_ADDR", IRType::LabelAddr),
             LT => IRInfo::new("LT", IRType::RegReg),
             Load8 => IRInfo::new("LOAD8", IRType::RegReg),
             Load32 => IRInfo::new("LOAD32", IRType::RegReg),
@@ -139,6 +145,12 @@ impl fmt::Display for IR {
         let lhs = self.lhs.unwrap();
         match info.ty {
             Label => write!(f, ".L{}=>", lhs),
+            LabelAddr => {
+                match self.op {
+                    IROp::LabelAddr(ref name) => write!(f, "  {} r{}, {}", info.name, lhs, name),
+                    _ => unreachable!(),
+                }
+            }
             Imm => write!(f, "  {} {}", info.name, lhs),
             Reg => write!(f, "  {} r{}", info.name, lhs),
             Jmp => write!(f, "  {} .L{}", info.name, lhs),
@@ -220,7 +232,13 @@ fn gen_lval(node: Node) -> Option<usize> {
             *NREG.lock().unwrap() += 1;
             add(IROp::Mov, r, Some(0));
             add(IROp::SubImm, r, Some(node.offset));
-            return r;
+            r
+        }
+        NodeType::Gvar(name) => {
+            let r = Some(*NREG.lock().unwrap());
+            *NREG.lock().unwrap() += 1;
+            add(IROp::LabelAddr(name), r, None);
+            r
         }
         _ => unreachable!(),
     }
@@ -277,14 +295,18 @@ fn gen_expr(node: Node) -> Option<usize> {
             label(y);
             return r1;
         }
-        NodeType::Lvar => {
-            let ty = node.ty.ty.clone();
-            let r = gen_lval(node);
-            match ty {
-                Ctype::Char => add(IROp::Load8, r, r),
-                Ctype::Int => add(IROp::Load32, r, r),
-                _ => add(IROp::Load64, r, r),
+        NodeType::Lvar |
+        NodeType::Gvar(_) => {
+            let op;
+            {
+                op = match node.ty.ty {
+                    Ctype::Char => IROp::Load8,
+                    Ctype::Int => IROp::Load32,
+                    _ => IROp::Load64,
+                };
             }
+            let r = gen_lval(node);
+            add(op, r, r);
             return r;
         }
         NodeType::Call(name, args) => {
@@ -305,8 +327,21 @@ fn gen_expr(node: Node) -> Option<usize> {
         }
         NodeType::Addr(expr) => gen_lval(*expr),
         NodeType::Deref(expr) => {
+            let op: IROp;
+            {
+                op = match &expr.ty.ty {
+                    Ctype::Ptr(ptr_of) => {
+                        match ptr_of.ty {
+                            Ctype::Char => IROp::Load8,
+                            Ctype::Int => IROp::Load32,
+                            _ => IROp::Load64,
+                        }
+                    }
+                    _ => IROp::Load64,
+                };
+            }
             let r = gen_expr(*expr);
-            add(IROp::Load64, r, r);
+            add(op, r, r);
             return r;
         }
         NodeType::BinOp(op, lhs, rhs) => {
@@ -429,7 +464,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
     let mut v = vec![];
     for node in nodes {
         match node.op {
-            NodeType::Func(name, args, body) => {
+            NodeType::Func(name, args, body, stacksize, strings) => {
                 *CODE.lock().unwrap() = vec![];
                 *NREG.lock().unwrap() = 1;
 
@@ -447,7 +482,8 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
                 v.push(Function::new(
                     name,
                     CODE.lock().unwrap().clone(),
-                    node.stacksize,
+                    stacksize,
+                    strings,
                 ));
             }
             _ => panic!("parse error."),

@@ -1,4 +1,5 @@
 use gen_ir::{IROp, Function};
+use parse::NodeType;
 use REGS;
 use REGS8;
 use REGS32;
@@ -16,9 +17,20 @@ lazy_static! {
 
 fn gen(f: Function) {
     use self::IROp::*;
+    print!(".data\n");
+    for node in f.strings {
+        if let NodeType::Str(str, name) = node.op {
+            print!("{}:\n", name);
+            print!("  .asciz \"{}\"\n", str);
+            continue;
+        }
+        unreachable!();
+    }
+
     let ret = format!(".Lend{}", *LABEL.lock().unwrap());
     *LABEL.lock().unwrap() += 1;
 
+    print!(".text\n");
     print!(".global {}\n", f.name);
     print!("{}:\n", f.name);
     print!("  push rbp\n");
@@ -52,6 +64,7 @@ fn gen(f: Function) {
                 print!("  mov {}, rax\n", REGS[lhs]);
             }
             Label => print!(".L{}:\n", lhs),
+            LabelAddr(name) => print!("  lea {}, {}\n", REGS[lhs], name),
             LT => {
                 print!("  cmp {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]);
                 print!("  setl {}\n", REGS8[lhs]);
@@ -62,7 +75,10 @@ fn gen(f: Function) {
                 print!("  cmp {}, 0\n", REGS[lhs]);
                 print!("  je .L{}\n", ir.rhs.unwrap());
             }
-            Load8 => print!("  mov {}, [{}]\n", REGS8[lhs], REGS[ir.rhs.unwrap()]),
+            Load8 => {
+                print!("  mov {}, [{}]\n", REGS8[lhs], REGS[ir.rhs.unwrap()]);
+                print!("  movzb {}, {}\n", REGS[lhs], REGS8[lhs]);
+            }
             Load32 => print!("  mov {}, [{}]\n", REGS32[lhs], REGS[ir.rhs.unwrap()]),
             Load64 => print!("  mov {}, [{}]\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             Store8 => print!("  mov [{}], {}\n", REGS[lhs], REGS8[ir.rhs.unwrap()]),

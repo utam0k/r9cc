@@ -76,11 +76,18 @@ impl Var {
     }
 }
 
-fn addr_of(base: Node, ty: Type) -> Node {
-    let ty = Type::new(Ctype::Ptr(Box::new(ty)));
-    let mut node = Node::new(NodeType::Addr(Box::new(base.clone())));
-    node.ty = Box::new(ty);
-    node
+fn maybe_decay(base: Node, decay: bool) -> Node {
+    if !decay {
+        return base;
+    }
+
+    if let Ctype::Ary(ary_of, _) = base.ty.ty.clone() {
+        let mut node = Node::new(NodeType::Addr(Box::new(base)));
+        node.ty = Box::new(Type::new(Ctype::Ptr(ary_of.clone())));
+        node
+    } else {
+        base
+    }
 }
 
 fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
@@ -97,30 +104,19 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
 
             let mut ret = Node::new(NodeType::Gvar(name));
             ret.ty = node.ty;
-            return walk(env, ret, decay);
+            return maybe_decay(ret, decay);
         }
         Ident(ref name) => {
             if let Some(var) = env.find(name) {
                 node.op = NodeType::Lvar;
                 if let Scope::Local(offset) = var.scope {
-                    node.offset = offset;
+                    let mut ret = Node::new(NodeType::Lvar);
+                    ret.offset = offset;
+                    ret.ty = var.ty.clone();
+                    return maybe_decay(ret, decay);
                 }
-                if decay {
-                    if let Ctype::Ary(ref ary_of, _) = var.ty.ty {
-                        node = addr_of(node, *ary_of.clone());
-                        return node;
-                    }
-                }
-                node.ty = var.ty.clone();
             } else {
                 panic!("undefined variable: {}", name);
-            }
-        }
-        Gvar(_) => {
-            if decay {
-                if let Ctype::Ary(ref ary_of, _) = node.ty.ty.clone() {
-                    return addr_of(node, *ary_of.clone());
-                }
             }
         }
         Vardef(name, init_may) => {

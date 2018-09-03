@@ -4,6 +4,7 @@
 use parse::{Node, NodeType, Ctype};
 use token::TokenType;
 use util::size_of;
+use sema::Var;
 
 use std::sync::Mutex;
 use std::fmt;
@@ -60,11 +61,11 @@ pub struct Function {
     pub name: String,
     pub ir: Vec<IR>,
     pub stacksize: usize,
-    pub strings: Vec<Node>,
+    pub strings: Vec<Var>,
 }
 
 impl Function {
-    fn new(name: String, ir: Vec<IR>, stacksize: usize, strings: Vec<Node>) -> Self {
+    fn new(name: String, ir: Vec<IR>, stacksize: usize, strings: Vec<Var>) -> Self {
         Function {
             name: name,
             ir: ir,

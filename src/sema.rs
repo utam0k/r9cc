@@ -18,7 +18,7 @@ macro_rules! matches(
 lazy_static!{
     static ref STRLABEL: Mutex<usize> = Mutex::new(0);
     static ref VARS: Mutex<HashMap<String, Var>> = Mutex::new(HashMap::new());
-    static ref STRINGS: Mutex<Vec<Node>> = Mutex::new(vec![]);
+    static ref GLOBALS: Mutex<Vec<Var>> = Mutex::new(vec![]);
     static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
 }
 
@@ -26,16 +26,16 @@ fn swap(p: &mut Box<Node>, q: &mut Box<Node>) {
     mem::swap(p, q);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Scope {
     Local(usize), // offset
-    Global(String), // name
+    Global(String, String, usize), // name, data, len
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Var {
     ty: Box<Type>,
-    scope: Scope,
+    pub scope: Scope,
 }
 
 impl Var {
@@ -59,11 +59,12 @@ fn walk(mut node: Node, decay: bool) -> Node {
     let op = node.op.clone();
     match op {
         Num(_) => (),
-        Str(str, mut name) => {
-            name = format!(".L.str{}", *STRLABEL.lock().unwrap());
+        Str(str) => {
+            let name = format!(".L.str{}", *STRLABEL.lock().unwrap());
             *STRLABEL.lock().unwrap() += 1;
-            node.op = NodeType::Str(str, name.clone());
-            STRINGS.lock().unwrap().push(node.clone());
+            let len = str.len() + 1;
+            let var = Var::new(node.ty.clone(), Scope::Global(name.clone(), str, len));
+            GLOBALS.lock().unwrap().push(var);
 
             let mut ret = Node::new(NodeType::Gvar(name));
             ret.ty = node.ty;
@@ -224,7 +225,7 @@ pub fn sema(nodes: Vec<Node>) -> Vec<Node> {
 
         *VARS.lock().unwrap() = HashMap::new();
         *STACKSIZE.lock().unwrap() = 0;
-        *STRINGS.lock().unwrap() = vec![];
+        *GLOBALS.lock().unwrap() = vec![];
         let mut new = walk(node, true);
         if let NodeType::Func(name, args, body, _, _) = new.op {
             new.op = NodeType::Func(
@@ -232,7 +233,7 @@ pub fn sema(nodes: Vec<Node>) -> Vec<Node> {
                 args,
                 body,
                 *STACKSIZE.lock().unwrap(),
-                STRINGS.lock().unwrap().clone(),
+                GLOBALS.lock().unwrap().clone(),
             )
         }
         new_nodes.push(new);

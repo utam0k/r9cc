@@ -1,5 +1,5 @@
 use gen_ir::{IROp, Function};
-use parse::NodeType;
+use sema::Scope;
 use REGS;
 use REGS8;
 use REGS32;
@@ -14,14 +14,30 @@ lazy_static! {
     static ref LABEL: Mutex<usize> = Mutex::new(0);
 }
 
+fn escape(s: String) -> String {
+    let mut buf = String::new();
+    for c in s.chars() {
+        if c == '\\' {
+            buf.push('\\');
+            buf.push('\\');
+        } else if c.is_ascii_graphic() || c == ' ' {
+            buf.push(c);
+        } else {
+            buf.push_str(&format!("\\{:o}", c as i8));
+        }
+    }
+    buf.push_str("\\000");
+    return buf;
+}
+
 
 fn gen(f: Function) {
     use self::IROp::*;
     print!(".data\n");
-    for node in f.strings {
-        if let NodeType::Str(str, name) = node.op {
+    for var in f.strings {
+        if let Scope::Global(name, data, _len) = var.scope {
             print!("{}:\n", name);
-            print!("  .asciz \"{}\"\n", str);
+            print!("  .ascii \"{}\"\n", escape(data));
             continue;
         }
         unreachable!();

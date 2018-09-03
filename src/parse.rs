@@ -1,4 +1,5 @@
 use token::{Token, TokenType};
+use sema::Var;
 
 fn expect(ty: TokenType, t: &Token, pos: &mut usize) {
     if t.ty != ty {
@@ -33,7 +34,7 @@ fn get_type(t: &Token) -> Option<Type> {
 #[derive(Debug, Clone)]
 pub enum NodeType {
     Num(i32), // Number literal
-    Str(String, String), // String literal, (str, name)
+    Str(String), // String literal
     Ident(String), // Identifier
     Vardef(String, Option<Box<Node>>), // Variable definition, name = init
     Lvar, // Variable reference
@@ -49,7 +50,7 @@ pub enum NodeType {
     Sizeof(Box<Node>), // "sizeof", expr
     Call(String, Vec<Node>), // Function call(name, args)
     // Function definition(name, args, body, stacksize, strings)
-    Func(String, Vec<Node>, Box<Node>, usize, Vec<Node>),
+    Func(String, Vec<Node>, Box<Node>, usize, Vec<Var>),
     ExprStmt(Box<Node>), // expresson stmt
     CompStmt(Vec<Node>), // Compound statement
 }
@@ -124,7 +125,7 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         }
         TokenType::Str(ref str) => {
             let l = str.len();
-            let mut node = Node::new(NodeType::Str(str.clone(), "".into()));
+            let mut node = Node::new(NodeType::Str(str.clone()));
             node.ty = Box::new(Type::new(Ctype::Ary(Box::new(Type::new(Ctype::Char)), l)));
             node
         }

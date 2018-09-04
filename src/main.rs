@@ -8,10 +8,12 @@ use r9cc::token::tokenize;
 use r9cc::sema::sema;
 
 use std::env;
+use std::fs::File;
+use std::io::prelude::*;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let input: String;
+    let mut input: String;
     let mut dump_tokens = false;
     let mut dump_ir1 = false;
     let mut dump_ir2 = false;
@@ -25,6 +27,10 @@ fn main() {
     } else if args.len() == 3 && args[1] == "-dump-tokens" {
         dump_tokens = true;
         input = args[2].clone();
+    } else if args.len() == 3 && args[1] == "-path" {
+        input = String::new();
+        let mut file = File::open(args[2].clone()).unwrap();
+        file.read_to_string(&mut input).unwrap();
     } else {
         if args.len() != 2 {
             eprint!("Usage: 9cc [-dump-ir1] [-dump-ir2] <code>\n");

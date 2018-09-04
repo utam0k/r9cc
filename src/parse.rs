@@ -1,5 +1,6 @@
 use token::{Token, TokenType};
-use sema::Var;
+use sema::Scope;
+use util::size_of;
 
 fn expect(ty: TokenType, t: &Token, pos: &mut usize) {
     if t.ty != ty {
@@ -34,11 +35,11 @@ fn get_type(t: &Token) -> Option<Type> {
 #[derive(Debug, Clone)]
 pub enum NodeType {
     Num(i32), // Number literal
-    Str(String), // String literal
+    Str(String, usize), // String literal, (data, len)
     Ident(String), // Identifier
-    Vardef(String, Option<Box<Node>>), // Variable definition, name = init
-    Lvar, // Variable reference
-    Gvar(String), // Variable reference, name
+    Vardef(String, Option<Box<Node>>, Scope), // Variable definition, name = init
+    Lvar(Scope), // Variable reference
+    Gvar(String, String, usize), // Variable reference, (name, data, len)
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
     For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
@@ -49,8 +50,8 @@ pub enum NodeType {
     Return(Box<Node>), // "return", stmt
     Sizeof(Box<Node>), // "sizeof", expr
     Call(String, Vec<Node>), // Function call(name, args)
-    // Function definition(name, args, body, stacksize, strings)
-    Func(String, Vec<Node>, Box<Node>, usize, Vec<Var>),
+    // Function definition(name, args, body, stacksize)
+    Func(String, Vec<Node>, Box<Node>, usize),
     ExprStmt(Box<Node>), // expresson stmt
     CompStmt(Vec<Node>), // Compound statement
 }
@@ -90,8 +91,6 @@ impl Type {
 pub struct Node {
     pub op: NodeType, // Node type
     pub ty: Box<Type>, // C type
-    // Local variable
-    pub offset: usize,
 }
 
 impl Node {
@@ -99,7 +98,6 @@ impl Node {
         Self {
             op: op,
             ty: Box::new(Type::default()),
-            offset: 0,
         }
     }
 }
@@ -125,7 +123,7 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         }
         TokenType::Str(ref str) => {
             let l = str.len();
-            let mut node = Node::new(NodeType::Str(str.clone()));
+            let mut node = Node::new(NodeType::Str(str.clone(), l + 1));
             node.ty = Box::new(Type::new(Ctype::Ary(Box::new(Type::new(Ctype::Char)), l)));
             node
         }
@@ -319,7 +317,7 @@ fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             init = None
         }
         expect(TokenType::Semicolon, &tokens[*pos], pos);
-        let mut node = Node::new(NodeType::Vardef(name.clone(), init));
+        let mut node = Node::new(NodeType::Vardef(name.clone(), init, Scope::Local(0)));
         node.ty = ty;
         node
     } else {
@@ -332,7 +330,7 @@ fn param(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let t = &tokens[*pos];
     if let TokenType::Ident(ref name) = t.ty {
         *pos += 1;
-        let mut node = Node::new(NodeType::Vardef(name.clone(), None));
+        let mut node = Node::new(NodeType::Vardef(name.clone(), None, Scope::Local(0)));
         node.ty = ty;
         node
     } else {
@@ -408,45 +406,43 @@ fn compound_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     Node::new(NodeType::CompStmt(stmts))
 }
 
-fn function(tokens: &Vec<Token>, pos: &mut usize) -> Node {
-    match tokens[*pos].ty {
-        TokenType::Int => {
-            *pos += 1;
-            let t = &tokens[*pos];
-            match t.ty {
-                TokenType::Ident(ref name) => {
-                    *pos += 1;
-
-                    let mut args = vec![];
-                    expect(TokenType::LeftParen, &tokens[*pos], pos);
-                    if !consume(TokenType::RightParen, tokens, pos) {
-                        args.push(param(tokens, pos));
-                        while consume(TokenType::Colon, tokens, pos) {
-                            args.push(param(tokens, pos));
-                        }
-                        expect(TokenType::RightParen, &tokens[*pos], pos);
-                    }
-
-                    expect(TokenType::LeftBrace, &tokens[*pos], pos);
-                    let body = compound_stmt(tokens, pos);
-                    Node::new(NodeType::Func(
-                        name.clone(),
-                        args,
-                        Box::new(body),
-                        0,
-                        vec![],
-                    ))
-                }
-                _ => panic!("function name expected, but got {}", t.input),
-            }
-        }
-        _ => {
-            panic!(
-                "function return type expected, but got {}",
-                tokens[*pos].input
-            )
-        }
+fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let ty = ctype(tokens, pos);
+    let t = &tokens[*pos];
+    let name;
+    if let TokenType::Ident(ref name2) = t.ty {
+        name = name2;
+    } else {
+        panic!("function or variable name expected, but got {}", t.input);
     }
+    *pos += 1;
+
+    // Function
+    if consume(TokenType::LeftParen, tokens, pos) {
+        let mut args = vec![];
+        if !consume(TokenType::RightParen, tokens, pos) {
+            args.push(param(tokens, pos));
+            while consume(TokenType::Colon, tokens, pos) {
+                args.push(param(tokens, pos));
+            }
+            expect(TokenType::RightParen, &tokens[*pos], pos);
+        }
+
+        expect(TokenType::LeftBrace, &tokens[*pos], pos);
+        let body = compound_stmt(tokens, pos);
+        return Node::new(NodeType::Func(name.clone(), args, Box::new(body), 0));
+    }
+
+    // Global variable
+    let ty = read_array(Box::new(ty), tokens, pos);
+    let mut node = Node::new(NodeType::Vardef(
+        name.clone(),
+        None,
+        Scope::Global(name.clone(), "".into(), size_of(&*ty)),
+    ));
+    node.ty = ty;
+    expect(TokenType::Semicolon, &tokens[*pos], pos);
+    node
 }
 
 /* e.g.
@@ -464,7 +460,7 @@ pub fn parse(tokens: &Vec<Token>) -> Vec<Node> {
 
     let mut v = vec![];
     while tokens.len() != pos {
-        v.push(function(tokens, &mut pos))
+        v.push(toplevel(tokens, &mut pos))
     }
     v
 }

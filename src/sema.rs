@@ -74,6 +74,13 @@ impl Var {
             scope: scope,
         }
     }
+
+    fn new_global(ty: Box<Type>, data: String, len: usize) -> Self {
+        let name = format!(".L.str{}", *STRLABEL.lock().unwrap());
+        *STRLABEL.lock().unwrap() += 1;
+        let var = Var::new(ty, Scope::Global(name, data, len));
+        return var;
+    }
 }
 
 fn maybe_decay(base: Node, decay: bool) -> Node {
@@ -90,47 +97,62 @@ fn maybe_decay(base: Node, decay: bool) -> Node {
     }
 }
 
+fn check_lval(node: &Node) {
+    let op = &node.op;
+    if matches!(op, NodeType::Lvar(_)) || matches!(op, NodeType::Gvar(_, _, _)) ||
+        matches!(op, NodeType::Deref(_))
+    {
+        return;
+    }
+    panic!("not an lvalue: {:?}", node.op);
+}
+
 fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
     use self::NodeType::*;
     let op = node.op.clone();
     match op {
         Num(_) => (),
-        Str(str) => {
+        Str(data, len) => {
             let name = format!(".L.str{}", *STRLABEL.lock().unwrap());
-            *STRLABEL.lock().unwrap() += 1;
-            let len = str.len() + 1;
-            let var = Var::new(node.ty.clone(), Scope::Global(name.clone(), str, len));
+            let var = Var::new_global(node.ty.clone(), data, len);
             GLOBALS.lock().unwrap().push(var);
 
-            let mut ret = Node::new(NodeType::Gvar(name));
+            let mut ret = Node::new(NodeType::Gvar(name, "".into(), len));
             ret.ty = node.ty;
             return maybe_decay(ret, decay);
         }
         Ident(ref name) => {
             if let Some(var) = env.find(name) {
-                node.op = NodeType::Lvar;
-                if let Scope::Local(offset) = var.scope {
-                    let mut ret = Node::new(NodeType::Lvar);
-                    ret.offset = offset;
-                    ret.ty = var.ty.clone();
-                    return maybe_decay(ret, decay);
+                match var.scope {
+                    Scope::Local(offset) => {
+                        let mut ret = Node::new(NodeType::Lvar(Scope::Local(offset)));
+                        ret.ty = var.ty.clone();
+                        return maybe_decay(ret, decay);
+                    }
+                    Scope::Global(ref name, ref data, len) => {
+                        let mut ret = Node::new(NodeType::Gvar(name.clone(), data.clone(), len));
+                        ret.ty = var.ty.clone();
+                        return maybe_decay(ret, decay);
+                    }
                 }
             } else {
                 panic!("undefined variable: {}", name);
             }
         }
-        Vardef(name, init_may) => {
+        Vardef(name, init_may, _) => {
             *STACKSIZE.lock().unwrap() += size_of(&*node.ty);
-            node.offset = *STACKSIZE.lock().unwrap();
+            let offset = *STACKSIZE.lock().unwrap();
 
             env.vars.insert(
                 name.clone(),
-                Var::new(node.ty.clone(), Scope::Local(*STACKSIZE.lock().unwrap())),
+                Var::new(node.ty.clone(), Scope::Local(offset)),
             );
 
-            if let Some(mut init) = init_may {
-                node.op = Vardef(name, Some(Box::new(walk(env, *init, true))));
+            let mut init = None;
+            if let Some(mut init2) = init_may {
+                init = Some(Box::new(walk(env, *init2, true)));
             }
+            node.op = Vardef(name, init, Scope::Local(offset));
         }
         If(cond, then, els_may) => {
             let new_cond = Box::new(walk(env, *cond, true));
@@ -167,9 +189,7 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
                 }
                 TokenType::Equal => {
                     lhs = Box::new(walk(env, *lhs, false));
-                    if !matches!(lhs.op, NodeType::Lvar) && !matches!(lhs.op, NodeType::Deref(_)) {
-                        panic!("not an lvalue: {:?}", node.op);
-                    }
+                    check_lval(&*lhs);
                     node.op = BinOp(token_type, lhs.clone(), Box::new(walk(env, *rhs, true)));
                     node.ty = lhs.ty;
                 }
@@ -192,6 +212,7 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
         }
         Addr(mut expr) => {
             expr = Box::new(walk(env, *expr, true));
+            check_lval(&*expr);
             node.ty = Box::new(Type::new(Ctype::Ptr(expr.ty.clone())));
             node.op = Addr(expr);
         }
@@ -217,18 +238,12 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
             }
             node.op = Call(name, new_args);
         }
-        Func(name, args, body, stacksize, strings) => {
+        Func(name, args, body, stacksize) => {
             let mut new_args = vec![];
             for arg in args {
                 new_args.push(walk(env, arg, true));
             }
-            node.op = Func(
-                name,
-                new_args,
-                Box::new(walk(env, *body, true)),
-                stacksize,
-                strings,
-            );
+            node.op = Func(name, new_args, Box::new(walk(env, *body, true)), stacksize);
         }
         CompStmt(stmts) => {
             let mut new_stmts = vec![];
@@ -244,24 +259,25 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
     node
 }
 
-pub fn sema(nodes: Vec<Node>) -> Vec<Node> {
+pub fn sema(nodes: Vec<Node>) -> (Vec<Node>, Vec<Var>) {
     let mut new_nodes = vec![];
-    for mut node in nodes {
-        assert!(matches!(node.op, NodeType::Func(_, _, _, _, _)));
+    let mut topenv = Env::new(None);
 
-        *STACKSIZE.lock().unwrap() = 0;
-        *GLOBALS.lock().unwrap() = vec![];
-        let mut new = walk(&mut Env::new(None), node, true);
-        if let NodeType::Func(name, args, body, _, _) = new.op {
-            new.op = NodeType::Func(
-                name,
-                args,
-                body,
-                *STACKSIZE.lock().unwrap(),
-                GLOBALS.lock().unwrap().clone(),
-            )
+    for mut node in nodes {
+        if let NodeType::Vardef(name, _, Scope::Global(_, data, len)) = node.op {
+            let var = Var::new_global(node.ty, data, len);
+            GLOBALS.lock().unwrap().push(var.clone());
+            topenv.vars.insert(name, var);
+            continue;
         }
-        new_nodes.push(new);
+
+        assert!(matches!(node.op, NodeType::Func(_, _, _, _)));
+        let mut new = walk(&mut topenv, node, true);
+        if let NodeType::Func(name, args, body, _) = new.op {
+            new.op = NodeType::Func(name.clone(), args, body, *STACKSIZE.lock().unwrap());
+            *STACKSIZE.lock().unwrap() = 0;
+            new_nodes.push(new);
+        }
     }
-    new_nodes
+    (new_nodes, GLOBALS.lock().unwrap().clone())
 }

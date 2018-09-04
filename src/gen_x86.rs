@@ -1,5 +1,5 @@
 use gen_ir::{IROp, Function};
-use sema::Scope;
+use sema::{Scope, Var};
 use REGS;
 use REGS8;
 use REGS32;
@@ -33,16 +33,6 @@ fn escape(s: String) -> String {
 
 fn gen(f: Function) {
     use self::IROp::*;
-    print!(".data\n");
-    for var in f.strings {
-        if let Scope::Global(name, data, _len) = var.scope {
-            print!("{}:\n", name);
-            print!("  .ascii \"{}\"\n", escape(data));
-            continue;
-        }
-        unreachable!();
-    }
-
     let ret = format!(".Lend{}", *LABEL.lock().unwrap());
     *LABEL.lock().unwrap() += 1;
 
@@ -131,8 +121,18 @@ fn gen(f: Function) {
     print!("  ret\n");
 }
 
-pub fn gen_x86(fns: Vec<Function>) {
+pub fn gen_x86(globals: Vec<Var>, fns: Vec<Function>) {
     print!(".intel_syntax noprefix\n");
+    print!(".data\n");
+    for var in globals {
+        if let Scope::Global(name, data, _len) = var.scope {
+            print!("{}:\n", name);
+            print!("  .ascii \"{}\"\n", escape(data));
+            continue;
+        }
+        unreachable!();
+    }
+
     for f in fns {
         gen(f);
     }

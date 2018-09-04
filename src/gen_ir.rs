@@ -4,7 +4,7 @@
 use parse::{Node, NodeType, Ctype};
 use token::TokenType;
 use util::size_of;
-use sema::Var;
+use sema::Scope;
 
 use std::sync::Mutex;
 use std::fmt;
@@ -61,16 +61,14 @@ pub struct Function {
     pub name: String,
     pub ir: Vec<IR>,
     pub stacksize: usize,
-    pub strings: Vec<Var>,
 }
 
 impl Function {
-    fn new(name: String, ir: Vec<IR>, stacksize: usize, strings: Vec<Var>) -> Self {
+    fn new(name: String, ir: Vec<IR>, stacksize: usize) -> Self {
         Function {
             name: name,
             ir: ir,
             stacksize: stacksize,
-            strings: strings,
         }
     }
 }
@@ -228,14 +226,14 @@ fn label(x: Option<usize>) {
 fn gen_lval(node: Node) -> Option<usize> {
     match node.op {
         NodeType::Deref(expr) => gen_expr(*expr),
-        NodeType::Lvar => {
+        NodeType::Lvar(Scope::Local(offset)) => {
             let r = Some(*NREG.lock().unwrap());
             *NREG.lock().unwrap() += 1;
             add(IROp::Mov, r, Some(0));
-            add(IROp::SubImm, r, Some(node.offset));
+            add(IROp::SubImm, r, Some(offset));
             r
         }
-        NodeType::Gvar(name) => {
+        NodeType::Gvar(name, _, _) => {
             let r = Some(*NREG.lock().unwrap());
             *NREG.lock().unwrap() += 1;
             add(IROp::LabelAddr(name), r, None);
@@ -296,8 +294,8 @@ fn gen_expr(node: Node) -> Option<usize> {
             label(y);
             return r1;
         }
-        NodeType::Lvar |
-        NodeType::Gvar(_) => {
+        NodeType::Lvar(_) |
+        NodeType::Gvar(_, _, _) => {
             let op;
             {
                 op = match node.ty.ty {
@@ -385,13 +383,13 @@ fn gen_expr(node: Node) -> Option<usize> {
 
 fn gen_stmt(node: Node) {
     match node.op {
-        NodeType::Vardef(_, init_may) => {
+        NodeType::Vardef(_, init_may, Scope::Local(offset)) => {
             if let Some(init) = init_may {
                 let rhs = gen_expr(*init);
                 let lhs = Some(*NREG.lock().unwrap());
                 *NREG.lock().unwrap() += 1;
                 add(IROp::Mov, lhs, Some(0));
-                add(IROp::SubImm, lhs, Some(node.offset));
+                add(IROp::SubImm, lhs, Some(offset));
                 match node.ty.ty {
                     Ctype::Char => add(IROp::Store8, lhs, rhs),
                     Ctype::Int => add(IROp::Store32, lhs, rhs),
@@ -465,7 +463,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
     let mut v = vec![];
     for node in nodes {
         match node.op {
-            NodeType::Func(name, args, body, stacksize, strings) => {
+            NodeType::Func(name, args, body, stacksize) => {
                 *CODE.lock().unwrap() = vec![];
                 *NREG.lock().unwrap() = 1;
 
@@ -476,17 +474,17 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
                         Ctype::Int => IROp::Store32Arg,
                         _ => IROp::Store64Arg,
                     };
-                    add(op, Some(arg.offset), Some(i));
+                    if let NodeType::Vardef(_, _, Scope::Local(offset)) = arg.op {
+                        add(op, Some(offset), Some(i));
+                    } else {
+                        unreachable!();
+                    }
                 }
                 gen_stmt(*body);
 
-                v.push(Function::new(
-                    name,
-                    CODE.lock().unwrap().clone(),
-                    stacksize,
-                    strings,
-                ));
+                v.push(Function::new(name, CODE.lock().unwrap().clone(), stacksize));
             }
+            NodeType::Vardef(_, _, _) => (),
             _ => panic!("parse error."),
         }
     }

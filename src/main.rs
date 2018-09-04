@@ -42,8 +42,8 @@ fn main() {
         }
     }
 
-    let mut nodes = parse(&tokens);
-    nodes = sema(nodes);
+    let nodes = parse(&tokens);
+    let (nodes, globals) = sema(nodes);
     let mut fns = gen_ir(nodes);
 
     if dump_ir1 {
@@ -56,5 +56,5 @@ fn main() {
         dump_ir(&fns);
     }
 
-    gen_x86(fns);
+    gen_x86(globals, fns);
 }

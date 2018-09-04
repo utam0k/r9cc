@@ -14,19 +14,22 @@ lazy_static! {
     static ref LABEL: Mutex<usize> = Mutex::new(0);
 }
 
-fn escape(s: String) -> String {
+fn escape(s: String, len: usize) -> String {
     let mut buf = String::new();
-    for c in s.chars() {
-        if c == '\\' {
-            buf.push('\\');
-            buf.push('\\');
-        } else if c.is_ascii_graphic() || c == ' ' {
-            buf.push(c);
+    for i in 0..len {
+        if let Some(c) = s.chars().collect::<Vec<char>>().get(i) {
+            if c == &'\\' {
+                buf.push('\\');
+                buf.push('\\');
+            } else if c.is_ascii_graphic() || c == &' ' {
+                buf.push(c.clone());
+            } else {
+                buf.push_str(&format!("\\{:o}", c.clone() as i8));
+            }
         } else {
-            buf.push_str(&format!("\\{:o}", c as i8));
+            buf.push_str("\\000");
         }
     }
-    buf.push_str("\\000");
     return buf;
 }
 
@@ -130,9 +133,9 @@ pub fn gen_x86(globals: Vec<Var>, fns: Vec<Function>) {
     print!(".intel_syntax noprefix\n");
     print!(".data\n");
     for var in globals {
-        if let Scope::Global(data, _len) = var.scope {
+        if let Scope::Global(data, len) = var.scope {
             print!("{}:\n", var.name);
-            print!("  .ascii \"{}\"\n", escape(data));
+            print!("  .ascii \"{}\"\n", escape(data, len));
             continue;
         }
         unreachable!();

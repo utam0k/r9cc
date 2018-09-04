@@ -93,33 +93,37 @@ pub struct Token {
     pub input: String, // Token string (for error reporting)
 }
 
-fn read_string(mut p: String) -> String {
+fn read_string(mut p: String) -> (String, usize) {
     let mut sb = String::new();
+    let mut len = 0;
     loop {
         if let Some(mut c2) = p.chars().nth(0) {
             if c2 == '"' {
-                return sb;
+                return (sb, len + 1);
             }
 
             if c2 != '\\' {
                 p = p.split_off(1); // p ++
+                len += 1;
                 sb.push(c2);
                 continue;
             }
 
             p = p.split_off(1); // p ++
+            len += 1;
             c2 = p.chars().nth(0).unwrap();
             match c2 {
-                'a' => sb.push_str("\\a"),
-                'b' => sb.push_str("\\b"),
-                'f' => sb.push_str("\\f"),
-                'n' => sb.push_str("\\n"),
-                'r' => sb.push_str("\\r"),
-                't' => sb.push_str("\\t"),
-                'v' => sb.push_str("\\v"),
+                // 'a' => sb.push_str("\a"),
+                // 'b' => sb.push_str("\b"),
+                // 'f' => sb.push_str("\f"),
+                'n' => sb.push_str("\n"),
+                'r' => sb.push_str("\r"),
+                't' => sb.push_str("\t"),
+                // 'v' => sb.push_str("\v"),
                 _ => sb.push(c2),
             }
             p = p.split_off(1); // p ++
+            len += 1;
         } else {
             panic!("PREMATURE end of input");
         }
@@ -163,9 +167,8 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
         if c == '"' {
             p = p.split_off(1); // p ++
 
-            let sb = read_string(p.clone());
-            let len = sb.len() + 1;
-            p = p.split_off(len); // p += len
+            let (sb, len) = read_string(p.clone());
+            p = p.split_off(len); // p += len - 1
             let token = Token {
                 ty: TokenType::Str(sb, len),
                 input: p.clone(),

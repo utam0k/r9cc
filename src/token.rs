@@ -14,6 +14,8 @@ pub enum TokenType {
     If, // "if"
     Else, // "else"
     For, // "for"
+    EQ, // ==
+    NE, // !=
     Semicolon, // ;
     LeftParen, // (
     RightParen, // )
@@ -79,6 +81,8 @@ lazy_static! {
         Symbol::new("sizeof" , TokenType::Sizeof),
         Symbol::new("&&", TokenType::Logand),
         Symbol::new("||", TokenType::Logor),
+        Symbol::new("==", TokenType::EQ),
+        Symbol::new("!=", TokenType::NE),
     ].to_vec();
 }
 

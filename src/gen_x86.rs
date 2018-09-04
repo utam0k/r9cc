@@ -1,4 +1,4 @@
-use gen_ir::{IROp, Function};
+use gen_ir::{IROp, Function, IR};
 use sema::{Scope, Var};
 use REGS;
 use REGS8;
@@ -30,6 +30,13 @@ fn escape(s: String) -> String {
     return buf;
 }
 
+fn emit_cmp(ir: IR, insn: &'static str) {
+    let lhs = ir.lhs.unwrap();
+    let rhs = ir.rhs.unwrap();
+    print!("  cmp {}, {}\n", REGS[lhs], REGS[rhs]);
+    print!("  {} {}\n", insn, REGS8[lhs]);
+    print!("  movzb {}, {}\n", REGS[lhs], REGS8[lhs]);
+}
 
 fn gen(f: Function) {
     use self::IROp::*;
@@ -71,11 +78,9 @@ fn gen(f: Function) {
             }
             Label => print!(".L{}:\n", lhs),
             LabelAddr(name) => print!("  lea {}, {}\n", REGS[lhs], name),
-            LT => {
-                print!("  cmp {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]);
-                print!("  setl {}\n", REGS8[lhs]);
-                print!("  movzb {}, {}\n", REGS[lhs], REGS8[ir.lhs.unwrap()]);
-            }
+            EQ => emit_cmp(ir, "sete"),
+            NE => emit_cmp(ir, "setne"),
+            LT => emit_cmp(ir, "setl"),
             Jmp => print!("  jmp .L{}\n", lhs),
             Unless => {
                 print!("  cmp {}, 0\n", REGS[lhs]);

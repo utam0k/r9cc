@@ -234,14 +234,34 @@ fn rel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     }
 }
 
-fn logand(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+fn equality(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = rel(tokens, pos);
+    loop {
+        let t = &tokens[*pos];
+        if t.ty == TokenType::EQ {
+            *pos += 1;
+            lhs = new_binop(TokenType::EQ, lhs, rel(tokens, pos));
+        }
+        if t.ty == TokenType::NE {
+            *pos += 1;
+            lhs = new_binop(TokenType::NE, lhs, rel(tokens, pos));
+        }
+        return lhs;
+    }
+}
+
+
+fn logand(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let mut lhs = equality(tokens, pos);
     loop {
         if tokens[*pos].ty != TokenType::Logand {
             return lhs;
         }
         *pos += 1;
-        lhs = Node::new(NodeType::Logand(Box::new(lhs), Box::new(rel(tokens, pos))));
+        lhs = Node::new(NodeType::Logand(
+            Box::new(lhs),
+            Box::new(equality(tokens, pos)),
+        ));
     }
 }
 

@@ -86,6 +86,8 @@ pub enum IROp {
     Call(String, usize, [usize; 6]),
     Label,
     LabelAddr(String),
+    EQ,
+    NE,
     LT,
     Jmp,
     Unless,
@@ -114,6 +116,8 @@ impl<'a> From<&'a IROp> for IRInfo {
             Kill => IRInfo::new("KILL", IRType::Reg),
             Label => IRInfo::new("", IRType::Label),
             LabelAddr(_) => IRInfo::new("LABEL_ADDR", IRType::LabelAddr),
+            EQ => IRInfo::new("EQ", IRType::RegReg),
+            NE => IRInfo::new("NE", IRType::RegReg),
             LT => IRInfo::new("LT", IRType::RegReg),
             Load8 => IRInfo::new("LOAD8", IRType::RegReg),
             Load32 => IRInfo::new("LOAD32", IRType::RegReg),
@@ -373,6 +377,20 @@ fn gen_expr(node: Node) -> Option<usize> {
                     } else {
                         gen_binop(insn, lhs, rhs)
                     }
+                }
+                TokenType::EQ => {
+                    let lhs = gen_expr(*lhs);
+                    let rhs = gen_expr(*rhs);
+                    add(IROp::EQ, lhs, rhs);
+                    kill(rhs);
+                    lhs
+                }
+                TokenType::NE => {
+                    let lhs = gen_expr(*lhs);
+                    let rhs = gen_expr(*rhs);
+                    add(IROp::NE, lhs, rhs);
+                    kill(rhs);
+                    lhs
                 }
                 _ => gen_binop(IROp::from(op), lhs, rhs),
             }

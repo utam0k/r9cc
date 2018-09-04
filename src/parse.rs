@@ -121,10 +121,11 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             node.ty = Box::new(Type::new(Ctype::Int));
             node
         }
-        TokenType::Str(ref str) => {
-            let l = str.len();
-            let mut node = Node::new(NodeType::Str(str.clone(), l + 1));
-            node.ty = Box::new(Type::new(Ctype::Ary(Box::new(Type::new(Ctype::Char)), l)));
+        TokenType::Str(ref str, len) => {
+            let mut node = Node::new(NodeType::Str(str.clone(), len));
+            node.ty = Box::new(Type::new(
+                Ctype::Ary(Box::new(Type::new(Ctype::Char)), str.len()),
+            ));
             node
         }
         TokenType::Ident(ref name) => {

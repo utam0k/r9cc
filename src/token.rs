@@ -2,7 +2,7 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     Num(i32), // Number literal
-    Str(String), // String literal
+    Str(String, usize), // String literal, (str, len)
     Ident(String), // Identifier
     Int, // "int"
     Char, // "char"
@@ -31,7 +31,6 @@ pub enum TokenType {
     Colon, // ,
 }
 
-// impl From<char> for TokenType {
 impl TokenType {
     fn new_single_letter(c: char) -> Option<Self> {
         use self::TokenType::*;
@@ -90,6 +89,39 @@ pub struct Token {
     pub input: String, // Token string (for error reporting)
 }
 
+fn read_string(mut p: String) -> String {
+    let mut sb = String::new();
+    loop {
+        if let Some(mut c2) = p.chars().nth(0) {
+            if c2 == '"' {
+                return sb;
+            }
+
+            if c2 != '\\' {
+                p = p.split_off(1); // p ++
+                sb.push(c2);
+                continue;
+            }
+
+            p = p.split_off(1); // p ++
+            c2 = p.chars().nth(0).unwrap();
+            match c2 {
+                'a' => sb.push_str("\\a"),
+                'b' => sb.push_str("\\b"),
+                'f' => sb.push_str("\\f"),
+                'n' => sb.push_str("\\n"),
+                'r' => sb.push_str("\\r"),
+                't' => sb.push_str("\\t"),
+                'v' => sb.push_str("\\v"),
+                _ => sb.push(c2),
+            }
+            p = p.split_off(1); // p ++
+        } else {
+            panic!("PREMATURE end of input");
+        }
+    }
+}
+
 pub fn tokenize(mut p: String) -> Vec<Token> {
     // Tokenized input is stored to this vec.
     let mut tokens: Vec<Token> = vec![];
@@ -125,23 +157,13 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
 
         // String literal
         if c == '"' {
-            let mut len = 0;
             p = p.split_off(1); // p ++
-            while let Some(c2) = p.chars().nth(len) {
-                if c2 == '"' {
-                    break;
-                }
-                len += 1;
-            }
-            if len >= p.len() {
-                panic!("premature end of input");
-            }
 
-            let p_c = p.clone();
-            let (str, _last) = p_c.split_at(len);
-            p = p.split_off(len + 1); // p += len + 1
+            let sb = read_string(p.clone());
+            let len = sb.len() + 1;
+            p = p.split_off(len); // p += len
             let token = Token {
-                ty: TokenType::Str(str.to_string()),
+                ty: TokenType::Str(sb, len),
                 input: p.clone(),
             };
             tokens.push(token);

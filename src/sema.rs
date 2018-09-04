@@ -58,27 +58,29 @@ fn swap(p: &mut Box<Node>, q: &mut Box<Node>) {
 #[derive(Debug, Clone)]
 pub enum Scope {
     Local(usize), // offset
-    Global(String, String, usize), // name, data, len
+    Global(String, usize), // data, len
 }
 
 #[derive(Debug, Clone)]
 pub struct Var {
     ty: Box<Type>,
+    pub name: String,
     pub scope: Scope,
 }
 
 impl Var {
-    fn new(ty: Box<Type>, scope: Scope) -> Self {
+    fn new(ty: Box<Type>, name: String, scope: Scope) -> Self {
         Var {
             ty: ty,
+            name: name,
             scope: scope,
         }
     }
 
     fn new_global(ty: Box<Type>, data: String, len: usize) -> Self {
-        let name = format!(".L.str{}", *STRLABEL.lock().unwrap());
         *STRLABEL.lock().unwrap() += 1;
-        let var = Var::new(ty, Scope::Global(name, data, len));
+        let name = format!(".L.str{}", *STRLABEL.lock().unwrap());
+        let var = Var::new(ty, name.clone(), Scope::Global(data, len));
         return var;
     }
 }
@@ -113,8 +115,8 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
     match op {
         Num(_) => (),
         Str(data, len) => {
-            let name = format!(".L.str{}", *STRLABEL.lock().unwrap());
             let var = Var::new_global(node.ty.clone(), data, len);
+            let name = var.name.clone();
             GLOBALS.lock().unwrap().push(var);
 
             let mut ret = Node::new(NodeType::Gvar(name, "".into(), len));
@@ -129,8 +131,9 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
                         ret.ty = var.ty.clone();
                         return maybe_decay(ret, decay);
                     }
-                    Scope::Global(ref name, ref data, len) => {
-                        let mut ret = Node::new(NodeType::Gvar(name.clone(), data.clone(), len));
+                    Scope::Global(ref data, len) => {
+                        let mut ret =
+                            Node::new(NodeType::Gvar(var.name.clone(), data.clone(), len));
                         ret.ty = var.ty.clone();
                         return maybe_decay(ret, decay);
                     }
@@ -145,7 +148,7 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
 
             env.vars.insert(
                 name.clone(),
-                Var::new(node.ty.clone(), Scope::Local(offset)),
+                Var::new(node.ty.clone(), name.clone(), Scope::Local(offset)),
             );
 
             let mut init = None;
@@ -264,7 +267,7 @@ pub fn sema(nodes: Vec<Node>) -> (Vec<Node>, Vec<Var>) {
     let mut topenv = Env::new(None);
 
     for mut node in nodes {
-        if let NodeType::Vardef(name, _, Scope::Global(_, data, len)) = node.op {
+        if let NodeType::Vardef(name, _, Scope::Global(data, len)) = node.op {
             let var = Var::new_global(node.ty, data, len);
             GLOBALS.lock().unwrap().push(var.clone());
             topenv.vars.insert(name, var);

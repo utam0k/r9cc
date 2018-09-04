@@ -125,8 +125,8 @@ pub fn gen_x86(globals: Vec<Var>, fns: Vec<Function>) {
     print!(".intel_syntax noprefix\n");
     print!(".data\n");
     for var in globals {
-        if let Scope::Global(name, data, _len) = var.scope {
-            print!("{}:\n", name);
+        if let Scope::Global(data, _len) = var.scope {
+            print!("{}:\n", var.name);
             print!("  .ascii \"{}\"\n", escape(data));
             continue;
         }

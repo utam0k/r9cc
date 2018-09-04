@@ -410,9 +410,9 @@ fn compound_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let ty = ctype(tokens, pos);
     let t = &tokens[*pos];
-    let name;
+    let name: String;
     if let TokenType::Ident(ref name2) = t.ty {
-        name = name2;
+        name = name2.clone();
     } else {
         panic!("function or variable name expected, but got {}", t.input);
     }
@@ -431,15 +431,15 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
         expect(TokenType::LeftBrace, &tokens[*pos], pos);
         let body = compound_stmt(tokens, pos);
-        return Node::new(NodeType::Func(name.clone(), args, Box::new(body), 0));
+        return Node::new(NodeType::Func(name, args, Box::new(body), 0));
     }
 
     // Global variable
     let ty = read_array(Box::new(ty), tokens, pos);
     let mut node = Node::new(NodeType::Vardef(
-        name.clone(),
+        name,
         None,
-        Scope::Global(name.clone(), "".into(), size_of(&*ty)),
+        Scope::Global(String::new(), size_of(&*ty)),
     ));
     node.ty = ty;
     expect(TokenType::Semicolon, &tokens[*pos], pos);

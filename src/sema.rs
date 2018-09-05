@@ -58,7 +58,7 @@ fn swap(p: &mut Box<Node>, q: &mut Box<Node>) {
 #[derive(Debug, Clone)]
 pub enum Scope {
     Local(usize), // offset
-    Global(String, usize), // data, len
+    Global(String, usize, bool), // data, len, is_extern
 }
 
 #[derive(Debug, Clone)]
@@ -77,10 +77,8 @@ impl Var {
         }
     }
 
-    fn new_global(ty: Box<Type>, data: String, len: usize) -> Self {
-        *STRLABEL.lock().unwrap() += 1;
-        let name = format!(".L.str{}", *STRLABEL.lock().unwrap());
-        let var = Var::new(ty, name.clone(), Scope::Global(data, len));
+    fn new_global(ty: Box<Type>, name: String, data: String, len: usize, is_extern: bool) -> Self {
+        let var = Var::new(ty, name.clone(), Scope::Global(data, len, is_extern));
         return var;
     }
 }
@@ -115,7 +113,9 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
     match op {
         Num(_) => (),
         Str(data, len) => {
-            let var = Var::new_global(node.ty.clone(), data, len);
+            let name = format!(".L.str{}", *STRLABEL.lock().unwrap());
+            *STRLABEL.lock().unwrap() += 1;
+            let var = Var::new_global(node.ty.clone(), name, data, len, false);
             let name = var.name.clone();
             GLOBALS.lock().unwrap().push(var);
 
@@ -131,7 +131,7 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
                         ret.ty = var.ty.clone();
                         return maybe_decay(ret, decay);
                     }
-                    Scope::Global(ref data, len) => {
+                    Scope::Global(ref data, len, _) => {
                         let mut ret =
                             Node::new(NodeType::Gvar(var.name.clone(), data.clone(), len));
                         ret.ty = var.ty.clone();
@@ -273,8 +273,9 @@ pub fn sema(nodes: Vec<Node>) -> (Vec<Node>, Vec<Var>) {
     let mut topenv = Env::new(None);
 
     for mut node in nodes {
-        if let NodeType::Vardef(name, _, Scope::Global(data, len)) = node.op {
-            let var = Var::new_global(node.ty, data, len);
+        if let NodeType::Vardef(name, _, Scope::Global(data, len, is_extern)) = node.op {
+            *STRLABEL.lock().unwrap() += 1;
+            let var = Var::new_global(node.ty, name.clone(), data, len, is_extern);
             GLOBALS.lock().unwrap().push(var.clone());
             topenv.vars.insert(name, var);
             continue;

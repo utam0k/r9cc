@@ -4,6 +4,7 @@ pub enum TokenType {
     Num(i32), // Number literal
     Str(String, usize), // String literal, (str, len)
     Ident(String), // Identifier
+    Extern, // "int"
     Int, // "int"
     Char, // "char"
     Plus, // +
@@ -77,6 +78,7 @@ lazy_static! {
         Symbol::new("char" , TokenType::Char),
         Symbol::new("do" , TokenType::Do),
         Symbol::new("else" , TokenType::Else),
+        Symbol::new("extern" , TokenType::Extern),
         Symbol::new("for" , TokenType::For),
         Symbol::new("if" , TokenType::If),
         Symbol::new("int" , TokenType::Int),

@@ -439,6 +439,7 @@ fn compound_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 }
 
 fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let is_extern = consume(TokenType::Extern, &tokens, pos);
     let ty = ctype(tokens, pos);
     let t = &tokens[*pos];
     let name: String;
@@ -467,11 +468,20 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
     // Global variable
     let ty = read_array(Box::new(ty), tokens, pos);
-    let mut node = Node::new(NodeType::Vardef(
-        name,
-        None,
-        Scope::Global(String::new(), size_of(&*ty)),
-    ));
+    let mut node;
+    if is_extern {
+        node = Node::new(NodeType::Vardef(
+            name,
+            None,
+            Scope::Global(String::new(), 0, true),
+        ));
+    } else {
+        node = Node::new(NodeType::Vardef(
+            name,
+            None,
+            Scope::Global(String::new(), size_of(&*ty), false),
+        ));
+    }
     node.ty = ty;
     expect(TokenType::Semicolon, &tokens[*pos], pos);
     node

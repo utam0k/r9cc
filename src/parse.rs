@@ -53,8 +53,9 @@ pub enum NodeType {
     Call(String, Vec<Node>), // Function call(name, args)
     // Function definition(name, args, body, stacksize)
     Func(String, Vec<Node>, Box<Node>, usize),
-    ExprStmt(Box<Node>), // expresson stmt
     CompStmt(Vec<Node>), // Compound statement
+    ExprStmt(Box<Node>), // Expression statement
+    StmtExpr(Box<Node>), // Statement expression (GNU extn.)
 }
 
 #[derive(Debug, Clone)]
@@ -147,6 +148,11 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             return Node::new(NodeType::Call(name.clone(), args));
         }
         TokenType::LeftParen => {
+            if consume(TokenType::LeftBrace, tokens, pos) {
+                let stmt = Box::new(compound_stmt(tokens, pos));
+                expect(TokenType::RightParen, &tokens[*pos], pos);
+                return Node::new(NodeType::StmtExpr(stmt));
+            }
             let node = assign(tokens, pos);
             expect(TokenType::RightParen, &tokens[*pos], pos);
             node

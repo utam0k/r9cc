@@ -11,7 +11,9 @@ use std::fmt;
 
 lazy_static!{
     static ref NREG: Mutex<usize> = Mutex::new(1);
-    static ref NLABEL: Mutex<usize> = Mutex::new(0);
+    static ref NLABEL: Mutex<usize> = Mutex::new(1);
+    static ref RETURN_LABEL: Mutex<usize> = Mutex::new(0);
+    static ref RETURN_REG: Mutex<usize> = Mutex::new(0);
     static ref CODE: Mutex<Vec<IR>> = Mutex::new(vec![]);
 }
 
@@ -168,7 +170,10 @@ impl fmt::Display for IR {
                     IROp::Call(ref name, nargs, args) => {
                         let mut sb: String = format!("  r{} = {}(", lhs, name);
                         for i in 0..nargs {
-                            sb.push_str(&format!(", r{}", args[i]));
+                            if i != 0 {
+                                sb.push_str(&format!(", "));
+                            }
+                            sb.push_str(&format!("r{}", args[i]));
                         }
                         sb.push_str(")");
                         write!(f, "{}", sb)
@@ -349,6 +354,22 @@ fn gen_expr(node: Node) -> Option<usize> {
             add(op, r, r);
             return r;
         }
+        NodeType::StmtExpr(stmt) => {
+            let orig_label = *RETURN_LABEL.lock().unwrap();
+            let orig_reg = *RETURN_REG.lock().unwrap();
+            *RETURN_LABEL.lock().unwrap() = *NLABEL.lock().unwrap();
+            *NLABEL.lock().unwrap() += 1;
+            let r = *NREG.lock().unwrap();
+            *NREG.lock().unwrap() += 1;
+            *RETURN_REG.lock().unwrap() = r;
+
+            gen_stmt(*stmt);
+            label(Some(*RETURN_LABEL.lock().unwrap()));
+
+            *RETURN_LABEL.lock().unwrap() = orig_label;
+            *RETURN_REG.lock().unwrap() = orig_reg;
+            return Some(r);
+        }
         NodeType::BinOp(op, lhs, rhs) => {
             match op {
                 TokenType::Equal => {
@@ -434,6 +455,7 @@ fn gen_stmt(node: Node) {
                 label(x);
                 gen_stmt(*els);
                 label(y);
+                return;
             }
 
             let x = Some(*NLABEL.lock().unwrap());
@@ -472,6 +494,15 @@ fn gen_stmt(node: Node) {
         }
         NodeType::Return(expr) => {
             let r = gen_expr(*expr);
+
+            // Statement expression (GNU extension)
+            if *RETURN_LABEL.lock().unwrap() != 0 {
+                add(IROp::Mov, Some(*RETURN_REG.lock().unwrap()), r);
+                kill(r);
+                add(IROp::Jmp, Some(*RETURN_LABEL.lock().unwrap()), None);
+                return;
+            }
+
             add(IROp::Return, r, None);
             kill(r);
         }

@@ -18,9 +18,9 @@ fn escape(s: String, len: usize) -> String {
     let mut buf = String::new();
     for i in 0..len {
         if let Some(c) = s.chars().collect::<Vec<char>>().get(i) {
-            if c == &'\\' {
+            if c == &'\\' || c == &'"' {
                 buf.push('\\');
-                buf.push('\\');
+                buf.push(c.clone());
             } else if c.is_ascii_graphic() || c == &' ' {
                 buf.push(c.clone());
             } else {

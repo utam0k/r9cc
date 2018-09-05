@@ -25,7 +25,7 @@ pub enum TokenType {
     LeftBracket, // [
     RightBracket, // ]
     LeftBrace, // {
-    RightBrace, // {
+    RightBrace, // }
     LeftAngleBracket, // <
     RightAngleBracket, // >
     Equal, // =

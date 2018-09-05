@@ -263,6 +263,10 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
             node.op = CompStmt(new_stmts);
         }
         ExprStmt(expr) => node.op = ExprStmt(Box::new(walk(env, *expr, true))),
+        StmtExpr(stmt) => {
+            node.op = StmtExpr(Box::new(walk(env, *stmt, true)));
+            node.ty = Box::new(Type::new(Ctype::Int));
+        }
         _ => panic!("unknown node type"),
     };
     node

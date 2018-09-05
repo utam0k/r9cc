@@ -174,6 +174,12 @@ fn walk(env: &mut Env, mut node: Node, decay: bool) -> Node {
                 Box::new(walk(env, *body, true)),
             );
         }
+        DoWhile(body, cond) => {
+            node.op = DoWhile(
+                Box::new(walk(env, *body, true)),
+                Box::new(walk(env, *cond, true)),
+            );
+        }
         BinOp(token_type, mut lhs, mut rhs) => {
             match token_type {
                 TokenType::Plus | TokenType::Minus => {

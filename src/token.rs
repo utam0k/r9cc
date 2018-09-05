@@ -14,6 +14,8 @@ pub enum TokenType {
     If, // "if"
     Else, // "else"
     For, // "for"
+    Do, // "do"
+    While, // "while"
     EQ, // ==
     NE, // !=
     Semicolon, // ;
@@ -73,11 +75,13 @@ impl Symbol {
 lazy_static! {
     static ref SYMBOLS: Vec<Symbol> = [
         Symbol::new("char" , TokenType::Char),
+        Symbol::new("do" , TokenType::Do),
         Symbol::new("else" , TokenType::Else),
         Symbol::new("for" , TokenType::For),
         Symbol::new("if" , TokenType::If),
         Symbol::new("int" , TokenType::Int),
         Symbol::new("return" , TokenType::Return),
+        Symbol::new("while" , TokenType::While),
         Symbol::new("sizeof" , TokenType::Sizeof),
         Symbol::new("&&", TokenType::Logand),
         Symbol::new("||", TokenType::Logor),

@@ -85,6 +85,10 @@ fn gen(f: Function) {
             NE => emit_cmp(ir, "setne"),
             LT => emit_cmp(ir, "setl"),
             Jmp => print!("  jmp .L{}\n", lhs),
+            If => {
+                print!("  cmp {}, 0\n", REGS[lhs]);
+                print!("  jne .L{}\n", ir.rhs.unwrap());
+            }
             Unless => {
                 print!("  cmp {}, 0\n", REGS[lhs]);
                 print!("  je .L{}\n", ir.rhs.unwrap());

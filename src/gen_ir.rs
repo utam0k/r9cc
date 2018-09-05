@@ -90,6 +90,7 @@ pub enum IROp {
     NE,
     LT,
     Jmp,
+    If,
     Unless,
     Load8,
     Load32,
@@ -134,6 +135,7 @@ impl<'a> From<&'a IROp> for IRInfo {
             Store64Arg => IRInfo::new("STORE64_ARG", IRType::ImmImm),
             Sub => IRInfo::new("SUB", IRType::RegReg),
             SubImm => IRInfo::new("SUB", IRType::RegImm),
+            If => IRInfo::new("IF", IRType::RegLabel),
             Unless => IRInfo::new("UNLESS", IRType::RegLabel),
         }
     }
@@ -458,6 +460,15 @@ fn gen_stmt(node: Node) {
             kill(r3);
             add(IROp::Jmp, x, None);
             label(y);
+        }
+        NodeType::DoWhile(body, cond) => {
+            let x = Some(*NLABEL.lock().unwrap());
+            *NLABEL.lock().unwrap() += 1;
+            label(x);
+            gen_stmt(*body);
+            let r = gen_expr(*cond);
+            add(IROp::If, r, x);
+            kill(r);
         }
         NodeType::Return(expr) => {
             let r = gen_expr(*expr);

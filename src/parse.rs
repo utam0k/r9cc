@@ -43,6 +43,7 @@ pub enum NodeType {
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
     For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
+    DoWhile(Box<Node>, Box<Node>), // do { body } while(cond)
     Addr(Box<Node>), // address-of operator("&"), expr
     Deref(Box<Node>), // pointer dereference ("*"), expr
     Logand(Box<Node>, Box<Node>), // left-hand, right-hand
@@ -394,6 +395,16 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             expect(TokenType::RightParen, &tokens[*pos], pos);
             let body = Box::new(stmt(&tokens, pos));
             Node::new(NodeType::For(init, cond, inc, body))
+        }
+        TokenType::Do => {
+            *pos += 1;
+            let body = Box::new(stmt(tokens, pos));
+            expect(TokenType::While, &tokens[*pos], pos);
+            expect(TokenType::LeftParen, &tokens[*pos], pos);
+            let cond = Box::new(assign(tokens, pos));
+            expect(TokenType::RightParen, &tokens[*pos], pos);
+            expect(TokenType::Semicolon, &tokens[*pos], pos);
+            Node::new(NodeType::DoWhile(body, cond))
         }
         TokenType::Return => {
             *pos += 1;

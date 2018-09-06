@@ -437,6 +437,10 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             }
             Node::new(NodeType::CompStmt(stmts))
         }
+        TokenType::Semicolon => {
+            *pos += 1;
+            Node::new(NodeType::Null)
+        }
         _ => {
             let expr = assign(&tokens, pos);
             let node = Node::new(NodeType::ExprStmt(Box::new(expr)));

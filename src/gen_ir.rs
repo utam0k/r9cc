@@ -354,7 +354,7 @@ fn gen_expr(node: Node) -> Option<usize> {
             add(op, r, r);
             return r;
         }
-        NodeType::StmtExpr(stmt) => {
+        NodeType::StmtExpr(body) => {
             let orig_label = *RETURN_LABEL.lock().unwrap();
             let orig_reg = *RETURN_REG.lock().unwrap();
             *RETURN_LABEL.lock().unwrap() = *NLABEL.lock().unwrap();
@@ -363,7 +363,7 @@ fn gen_expr(node: Node) -> Option<usize> {
             *NREG.lock().unwrap() += 1;
             *RETURN_REG.lock().unwrap() = r;
 
-            gen_stmt(*stmt);
+            gen_stmt(*body);
             label(Some(*RETURN_LABEL.lock().unwrap()));
 
             *RETURN_LABEL.lock().unwrap() = orig_label;
@@ -424,6 +424,7 @@ fn gen_expr(node: Node) -> Option<usize> {
 
 fn gen_stmt(node: Node) {
     match node.op {
+        NodeType::Null => return,
         NodeType::Vardef(_, init_may, Scope::Local(offset)) => {
             if let Some(init) = init_may {
                 let rhs = gen_expr(*init);
@@ -478,8 +479,7 @@ fn gen_stmt(node: Node) {
             add(IROp::Unless, r2, y);
             kill(r2);
             gen_stmt(*body);
-            let r3 = gen_expr(*inc);
-            kill(r3);
+            gen_stmt(*inc);
             add(IROp::Jmp, x, None);
             label(y);
         }

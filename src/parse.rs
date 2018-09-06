@@ -56,6 +56,7 @@ pub enum NodeType {
     CompStmt(Vec<Node>), // Compound statement
     ExprStmt(Box<Node>), // Expression statement
     StmtExpr(Box<Node>), // Statement expression (GNU extn.)
+    Null,
 }
 
 #[derive(Debug, Clone)]
@@ -397,7 +398,17 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             };
             let cond = Box::new(assign(&tokens, pos));
             expect(TokenType::Semicolon, &tokens[*pos], pos);
-            let inc = Box::new(assign(&tokens, pos));
+            let inc = Box::new(new_expr!(NodeType::ExprStmt, assign(&tokens, pos)));
+            expect(TokenType::RightParen, &tokens[*pos], pos);
+            let body = Box::new(stmt(&tokens, pos));
+            Node::new(NodeType::For(init, cond, inc, body))
+        }
+        TokenType::While => {
+            *pos += 1;
+            expect(TokenType::LeftParen, &tokens[*pos], pos);
+            let init = Box::new(Node::new(NodeType::Null));
+            let inc = Box::new(Node::new(NodeType::Null));
+            let cond = Box::new(assign(&tokens, pos));
             expect(TokenType::RightParen, &tokens[*pos], pos);
             let body = Box::new(stmt(&tokens, pos));
             Node::new(NodeType::For(init, cond, inc, body))

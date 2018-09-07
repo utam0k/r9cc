@@ -2,7 +2,8 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     Num(i32), // Number literal
-    Str(String, usize), // String literal, (str, len)
+    Str(String, usize), // String literal. (str, len)
+    CharLiteral(String), // Char literal.
     Ident(String), // Identifier
     Extern, // "int"
     Int, // "int"
@@ -99,6 +100,44 @@ pub struct Token {
     pub input: String, // Token string (for error reporting)
 }
 
+fn escaped(c: char) -> Option<char> {
+    // Issue: https://github.com/rust-lang/rfcs/issues/751
+    match c {
+        // 'a' => Some("\a"),
+        // 'b' => Some("\b"),
+        // 'f' => Some("\f"),
+        'n' => Some('\n'),
+        'r' => Some('\r'),
+        't' => Some('\t'),
+        // 'v' => Some("\v"),
+        _ => None,
+    }
+}
+
+fn read_char(p: &mut String) -> char {
+    let result: char;
+    if let Some(c) = p.chars().nth(0) {
+        if c != '\\' {
+            result = c;
+            p.drain(..1); // p ++
+        } else {
+            p.drain(..1); // p ++
+            let c2 = p.chars().nth(0).unwrap();
+            result = if let Some(esc) = escaped(c2) { esc } else { c2 };
+            p.drain(..1); // p ++
+        }
+
+        if p.chars().nth(0) != Some('\'') {
+            panic!("unclosed character literal");
+        }
+
+        p.drain(..1); // p ++
+        return result;
+    } else {
+        panic!("PREMATURE end of input");
+    }
+}
+
 fn read_string(mut p: String) -> (String, usize) {
     let mut sb = String::new();
     let mut len = 0;
@@ -118,15 +157,10 @@ fn read_string(mut p: String) -> (String, usize) {
             p = p.split_off(1); // p ++
             len += 1;
             c2 = p.chars().nth(0).unwrap();
-            match c2 {
-                // 'a' => sb.push_str("\a"),
-                // 'b' => sb.push_str("\b"),
-                // 'f' => sb.push_str("\f"),
-                'n' => sb.push_str("\n"),
-                'r' => sb.push_str("\r"),
-                't' => sb.push_str("\t"),
-                // 'v' => sb.push_str("\v"),
-                _ => sb.push(c2),
+            if let Some(esc) = escaped(c2) {
+                sb.push(esc);
+            } else {
+                sb.push(c2);
             }
             p = p.split_off(1); // p ++
             len += 1;
@@ -144,6 +178,17 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
         // Skip whitespce
         if c.is_whitespace() {
             p = p.split_off(1); // p++
+            continue;
+        }
+
+        // Character literal
+        if c == '\'' {
+            p = p.split_off(1); // p++
+            let val = read_char(&mut p);
+            tokens.push(Token {
+                ty: TokenType::Num(val as u8 as i32),
+                input: p.clone(),
+            });
             continue;
         }
 

@@ -18,9 +18,21 @@ fn escape(s: String, len: usize) -> String {
     let mut buf = String::new();
     for i in 0..len {
         if let Some(c) = s.chars().collect::<Vec<char>>().get(i) {
-            if c == &'\\' || c == &'"' {
+            // Issue: https://github.com/rust-lang/rfcs/issues/751
+            let escaped = match c {
+                // 'b' => Some("\b"),
+                // 'f' => Some("\f"),
+                '\n' => Some('n'),
+                '\r' => Some('r'),
+                '\t' => Some('t'),
+                '\\' => Some('\\'),
+                '\'' => Some('\''),
+                '\"' => Some('\"'),
+                _ => None,
+            };
+            if let Some(esc) = escaped {
                 buf.push('\\');
-                buf.push(c.clone());
+                buf.push(esc);
             } else if c.is_ascii_graphic() || c == &' ' {
                 buf.push(c.clone());
             } else {

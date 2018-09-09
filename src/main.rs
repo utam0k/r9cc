@@ -40,7 +40,7 @@ fn main() {
     }
 
     // Tokenize and parse.
-    let tokens = tokenize(input);
+    let tokens = tokenize(input.chars().collect());
 
     if dump_tokens {
         for token in &tokens {

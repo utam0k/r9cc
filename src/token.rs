@@ -38,7 +38,7 @@ pub enum TokenType {
 }
 
 impl TokenType {
-    fn new_single_letter(c: char) -> Option<Self> {
+    fn new_single_letter(c: &char) -> Option<Self> {
         use self::TokenType::*;
         match c {
             '+' => Some(Plus),
@@ -100,7 +100,7 @@ pub struct Token {
     pub input: String, // Token string (for error reporting)
 }
 
-fn escaped(c: char) -> Option<char> {
+fn escaped(c: &char) -> Option<char> {
     // Issue: https://github.com/rust-lang/rfcs/issues/751
     match c {
         // 'a' => Some("\a"),
@@ -114,55 +114,56 @@ fn escaped(c: char) -> Option<char> {
     }
 }
 
-fn read_char(p: &mut String) -> char {
+fn read_char(p: &Vec<char>, pos: &mut usize) -> char {
     let result: char;
-    if let Some(c) = p.chars().nth(0) {
-        if c != '\\' {
-            result = c;
-            p.drain(..1); // p ++
+    if let Some(c) = p.get(*pos) {
+        if c != &'\\' {
+            result = c.clone();
+            *pos += 1;
         } else {
-            p.drain(..1); // p ++
-            let c2 = p.chars().nth(0).unwrap();
-            result = if let Some(esc) = escaped(c2) { esc } else { c2 };
-            p.drain(..1); // p ++
+            *pos += 1;
+            let c2 = p.get(*pos).unwrap();
+            result = if let Some(esc) = escaped(c2) {
+                esc
+            } else {
+                c2.clone()
+            };
+            *pos += 1;
         }
 
-        if p.chars().nth(0) != Some('\'') {
+        if p.get(*pos) != Some(&'\'') {
             panic!("unclosed character literal");
         }
 
-        p.drain(..1); // p ++
+        *pos += 1;
         return result;
     } else {
         panic!("PREMATURE end of input");
     }
 }
 
-fn read_string(mut p: String) -> (String, usize) {
+fn read_string(p: &Vec<char>, pos: usize) -> (String, usize) {
     let mut sb = String::new();
     let mut len = 0;
     loop {
-        if let Some(mut c2) = p.chars().nth(0) {
-            if c2 == '"' {
+        if let Some(mut c2) = p.get(pos + len) {
+            if c2 == &'"' {
                 return (sb, len + 1);
             }
 
-            if c2 != '\\' {
-                p = p.split_off(1); // p ++
+            if c2 != &'\\' {
                 len += 1;
-                sb.push(c2);
+                sb.push(c2.clone());
                 continue;
             }
 
-            p = p.split_off(1); // p ++
             len += 1;
-            c2 = p.chars().nth(0).unwrap();
+            c2 = p.get(pos + len).unwrap();
             if let Some(esc) = escaped(c2) {
                 sb.push(esc);
             } else {
-                sb.push(c2);
+                sb.push(c2.clone());
             }
-            p = p.split_off(1); // p ++
             len += 1;
         } else {
             panic!("PREMATURE end of input");
@@ -170,24 +171,26 @@ fn read_string(mut p: String) -> (String, usize) {
     }
 }
 
-pub fn tokenize(mut p: String) -> Vec<Token> {
+pub fn tokenize(p: Vec<char>) -> Vec<Token> {
     // Tokenized input is stored to this vec.
     let mut tokens: Vec<Token> = vec![];
 
-    'outer: while let Some(c) = p.chars().nth(0) {
+    let mut pos = 0;
+
+    'outer: while let Some(c) = p.get(pos) {
         // Skip whitespce
         if c.is_whitespace() {
-            p = p.split_off(1); // p++
+            pos += 1;
             continue;
         }
 
         // Character literal
-        if c == '\'' {
-            p = p.split_off(1); // p++
-            let val = read_char(&mut p);
+        if c == &'\'' {
+            pos += 1;
+            let val = read_char(&p, &mut pos);
             tokens.push(Token {
-                ty: TokenType::Num(val as u8 as i32),
-                input: p.clone(),
+                ty: TokenType::Num(val.clone() as u8 as i32),
+                input: p.clone().into_iter().collect(),
             });
             continue;
         }
@@ -196,33 +199,32 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
         for symbol in SYMBOLS.iter() {
             let name = symbol.name;
             let len = name.len();
-            if len > p.len() {
+            if pos + len > p.len() {
                 continue;
             }
 
-            let p_c = p.clone();
-            let (first, _last) = p_c.split_at(len);
-            if name != first {
+            let first = &p[pos..pos + len];
+            if name.to_string() != first.into_iter().collect::<String>() {
                 continue;
             }
 
             tokens.push(Token {
                 ty: symbol.ty.clone(),
-                input: p.clone(),
+                input: p.clone().into_iter().collect(),
             });
-            p = p.split_off(len); // p += len
+            pos += len;
             continue 'outer;
         }
 
         // String literal
-        if c == '"' {
-            p = p.split_off(1); // p ++
+        if c == &'"' {
+            pos += 1;
 
-            let (sb, len) = read_string(p.clone());
-            p = p.split_off(len); // p += len - 1
+            let (sb, len) = read_string(&p, pos);
+            pos += len;
             let token = Token {
                 ty: TokenType::Str(sb, len),
-                input: p.clone(),
+                input: p.clone().into_iter().collect(),
             };
             tokens.push(token);
             continue;
@@ -232,30 +234,29 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
         if let Some(ty) = TokenType::new_single_letter(c) {
             let token = Token {
                 ty: ty,
-                input: p.clone(),
+                input: p.clone().into_iter().collect(),
             };
-            p = p.split_off(1); // p++
+            pos += 1;
             tokens.push(token);
             continue;
         }
 
         // Identifier
-        if c.is_alphabetic() || c == '_' {
+        if c.is_alphabetic() || c == &'_' {
             let mut len = 1;
-            while let Some(c2) = p.chars().nth(len) {
-                if c2.is_alphabetic() || c2.is_ascii_digit() || c2 == '_' {
+            while let Some(c2) = p.get(pos + len) {
+                if c2.is_alphabetic() || c2.is_ascii_digit() || c2 == &'_' {
                     len += 1;
                     continue;
                 }
                 break;
             }
 
-            let p_c = p.clone();
-            let (name, _last) = p_c.split_at(len);
-            p = p.split_off(len); // p += len
+            let name = &p[pos..pos + len];
+            pos += len;
             let token = Token {
-                ty: TokenType::Ident(name.to_string()),
-                input: p.clone(),
+                ty: TokenType::Ident(name.into_iter().collect()),
+                input: p.clone().into_iter().collect(),
             };
             tokens.push(token);
             continue;
@@ -264,23 +265,26 @@ pub fn tokenize(mut p: String) -> Vec<Token> {
         // Number
         if c.is_ascii_digit() {
             let mut val: i32 = 0;
-            for c in p.clone().chars() {
+            for c in p[pos..].iter() {
                 if !c.is_ascii_digit() {
                     break;
                 }
                 val = val * 10 + c.to_digit(10).unwrap() as i32;
-                p = p.split_off(1); // p++
+                pos += 1;
             }
 
             let token = Token {
                 ty: TokenType::Num(val as i32),
-                input: p.clone(),
+                input: p.clone().into_iter().collect(),
             };
             tokens.push(token);
             continue;
         }
 
-        panic!("cannot tokenize: {}\n", p);
+        panic!(
+            "cannot tokenize: {:?}\n",
+            p[pos..].into_iter().collect::<String>()
+        );
     }
     tokens
 }

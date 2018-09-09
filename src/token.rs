@@ -184,6 +184,29 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
             continue;
         }
 
+        // Line comment
+        if p.get(pos..pos + 2) == Some(&['/', '/']) {
+            while p.get(pos) != Some(&'\n') {
+                pos += 1;
+            }
+            continue;
+        }
+
+        // Block comment
+        if p.get(pos..pos + 2) == Some(&['/', '*']) {
+            pos += 2;
+            loop {
+                if let Some(&['*', '/']) = p.get(pos..pos + 2) {
+                    pos += 2;
+                    break;
+                } else {
+                    panic!("premature end of input");
+                }
+            }
+            continue;
+        }
+
+
         // Character literal
         if c == &'\'' {
             pos += 1;

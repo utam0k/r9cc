@@ -1,12 +1,12 @@
-extern int *stderr;
+// extern int *stderr;
 #define EXPECT(expected, expr)                                  \
   do {                                                          \
     int e1 = (expected);                                        \
     int e2 = (expr);                                            \
     if (e1 == e2) {                                             \
-      fprintf(stderr, "%s => %d\n", #expr, e2);                 \
+      printf("%s => %d\n", #expr, e2);                 \
     } else {                                                    \
-      fprintf(stderr, "%d: %s: %d expected, but got %d\n",      \
+      printf("%d: %s: %d expected, but got %d\n",      \
               __LINE__, #expr, e1, e2);                         \
       exit(1);                                                  \
     }                                                           \

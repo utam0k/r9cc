@@ -119,7 +119,7 @@ fn gen(f: Function) {
             Store64Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG64[ir.rhs.unwrap()]),
             Add => print!("  add {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             Sub => print!("  sub {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            SubImm => print!("  sub {}, {}\n", REGS[lhs], ir.rhs.unwrap()),
+            Bprel => print!("  lea {}, [rbp-{}]\n", REGS[lhs], ir.rhs.unwrap()),
             Mul => {
                 print!("  mov rax, {}\n", REGS[ir.rhs.unwrap()]);
                 print!("  mul {}\n", REGS[lhs]);

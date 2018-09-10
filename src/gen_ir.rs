@@ -82,7 +82,7 @@ pub enum IROp {
     Mul,
     Div,
     Imm,
-    SubImm,
+    Bprel,
     Mov,
     Return,
     Call(String, usize, [usize; 6]),
@@ -136,7 +136,7 @@ impl<'a> From<&'a IROp> for IRInfo {
             Store32Arg => IRInfo::new("STORE32_ARG", IRType::ImmImm),
             Store64Arg => IRInfo::new("STORE64_ARG", IRType::ImmImm),
             Sub => IRInfo::new("SUB", IRType::RegReg),
-            SubImm => IRInfo::new("SUB", IRType::RegImm),
+            Bprel => IRInfo::new("BPREL", IRType::RegImm),
             If => IRInfo::new("IF", IRType::RegLabel),
             Unless => IRInfo::new("UNLESS", IRType::RegLabel),
         }
@@ -240,8 +240,7 @@ fn gen_lval(node: Node) -> Option<usize> {
         NodeType::Lvar(Scope::Local(offset)) => {
             let r = Some(*NREG.lock().unwrap());
             *NREG.lock().unwrap() += 1;
-            add(IROp::Mov, r, Some(0));
-            add(IROp::SubImm, r, Some(offset));
+            add(IROp::Bprel, r, Some(offset));
             r
         }
         NodeType::Gvar(name, _, _) => {
@@ -430,8 +429,7 @@ fn gen_stmt(node: Node) {
                 let rhs = gen_expr(*init);
                 let lhs = Some(*NREG.lock().unwrap());
                 *NREG.lock().unwrap() += 1;
-                add(IROp::Mov, lhs, Some(0));
-                add(IROp::SubImm, lhs, Some(offset));
+                add(IROp::Bprel, lhs, Some(offset));
                 match node.ty.ty {
                     Ctype::Char => add(IROp::Store8, lhs, rhs),
                     Ctype::Int => add(IROp::Store32, lhs, rhs),

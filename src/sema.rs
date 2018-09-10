@@ -228,7 +228,7 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
         Deref(mut expr) => {
             expr = Box::new(walk(*expr, env, true));
             match expr.ty.ty {
-                Ctype::Ptr(ref ptr_of) => node.ty = ptr_of.clone(),
+                Ctype::Ptr(ref ptr_to) => node.ty = ptr_to.clone(),
                 _ => panic!("operand must be a pointer"),
             }
             node.op = Deref(expr);

@@ -340,8 +340,8 @@ fn gen_expr(node: Node) -> Option<usize> {
             let op: IROp;
             {
                 op = match &expr.ty.ty {
-                    Ctype::Ptr(ptr_of) => {
-                        match ptr_of.ty {
+                    Ctype::Ptr(ptr_to) => {
+                        match ptr_to.ty {
                             Ctype::Char => IROp::Load8,
                             Ctype::Int => IROp::Load32,
                             _ => IROp::Load64,
@@ -385,11 +385,11 @@ fn gen_expr(node: Node) -> Option<usize> {
                 }
                 TokenType::Plus | TokenType::Minus => {
                     let insn = IROp::from(op);
-                    if let Ctype::Ptr(ref ptr_of) = lhs.ty.ty.clone() {
+                    if let Ctype::Ptr(ref ptr_to) = lhs.ty.ty.clone() {
                         let rhs = gen_expr(*rhs);
                         let r = Some(*NREG.lock().unwrap());
                         *NREG.lock().unwrap() += 1;
-                        add(IROp::Imm, r, Some(size_of(ptr_of)));
+                        add(IROp::Imm, r, Some(size_of(ptr_to)));
                         add(IROp::Mul, rhs, r);
                         kill(r);
 

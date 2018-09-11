@@ -34,6 +34,7 @@ pub enum TokenType {
     Logand, // &&
     Return, // "return"
     Sizeof, // "sizeof"
+    Alignof, // "_Alignof"
     Colon, // ,
 }
 
@@ -76,6 +77,7 @@ impl Symbol {
 
 lazy_static! {
     static ref SYMBOLS: Vec<Symbol> = [
+        Symbol::new("_Alignof" , TokenType::Alignof),
         Symbol::new("char" , TokenType::Char),
         Symbol::new("do" , TokenType::Do),
         Symbol::new("else" , TokenType::Else),

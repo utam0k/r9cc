@@ -50,6 +50,7 @@ pub enum NodeType {
     Logor(Box<Node>, Box<Node>), // left-hand, right-hand
     Return(Box<Node>), // "return", stmt
     Sizeof(Box<Node>), // "sizeof", expr
+    Alignof(Box<Node>), // "_Alignof", expr
     Call(String, Vec<Node>), // Function call(name, args)
     // Function definition(name, args, body, stacksize)
     Func(String, Vec<Node>, Box<Node>, usize),
@@ -103,10 +104,14 @@ impl Node {
             ty: Box::new(Type::default()),
         }
     }
-}
 
-fn new_binop(ty: TokenType, lhs: Node, rhs: Node) -> Node {
-    Node::new(NodeType::BinOp(ty, Box::new(lhs), Box::new(rhs)))
+    pub fn new_int(val: i32) -> Self {
+        Node::new(NodeType::Num(val))
+    }
+
+    pub fn new_binop(ty: TokenType, lhs: Node, rhs: Node) -> Self {
+        Node::new(NodeType::BinOp(ty, Box::new(lhs), Box::new(rhs)))
+    }
 }
 
 macro_rules! new_expr(
@@ -167,7 +172,7 @@ fn postfix(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     while consume(TokenType::LeftBracket, tokens, pos) {
         lhs = new_expr!(
             NodeType::Deref,
-            new_binop(TokenType::Plus, lhs, assign(tokens, pos))
+            Node::new_binop(TokenType::Plus, lhs, assign(tokens, pos))
         );
         expect(TokenType::RightBracket, &tokens[*pos], pos);
     }
@@ -182,7 +187,10 @@ fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         return new_expr!(NodeType::Addr, mul(tokens, pos));
     }
     if consume(TokenType::Sizeof, tokens, pos) {
-        return new_expr!(NodeType::Sizeof, mul(tokens, pos));
+        return new_expr!(NodeType::Sizeof, unary(tokens, pos));
+    }
+    if consume(TokenType::Alignof, tokens, pos) {
+        return new_expr!(NodeType::Alignof, unary(tokens, pos));
     }
     postfix(tokens, pos)
 }
@@ -200,7 +208,7 @@ fn mul(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             return lhs;
         }
         *pos += 1;
-        lhs = new_binop(t.ty.clone(), lhs, unary(&tokens, pos));
+        lhs = Node::new_binop(t.ty.clone(), lhs, unary(&tokens, pos));
     }
 }
 
@@ -218,7 +226,7 @@ fn add(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         }
         *pos += 1;
         let rhs = mul(&tokens, pos);
-        lhs = new_binop(t.ty.clone(), lhs, rhs);
+        lhs = Node::new_binop(t.ty.clone(), lhs, rhs);
     }
 }
 
@@ -228,13 +236,13 @@ fn rel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         let t = &tokens[*pos];
         if t.ty == TokenType::LeftAngleBracket {
             *pos += 1;
-            lhs = new_binop(TokenType::LeftAngleBracket, lhs, add(tokens, pos));
+            lhs = Node::new_binop(TokenType::LeftAngleBracket, lhs, add(tokens, pos));
             continue;
         }
 
         if t.ty == TokenType::RightAngleBracket {
             *pos += 1;
-            lhs = new_binop(TokenType::LeftAngleBracket, add(tokens, pos), lhs);
+            lhs = Node::new_binop(TokenType::LeftAngleBracket, add(tokens, pos), lhs);
             continue;
         }
 
@@ -248,11 +256,11 @@ fn equality(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         let t = &tokens[*pos];
         if t.ty == TokenType::EQ {
             *pos += 1;
-            lhs = new_binop(TokenType::EQ, lhs, rel(tokens, pos));
+            lhs = Node::new_binop(TokenType::EQ, lhs, rel(tokens, pos));
         }
         if t.ty == TokenType::NE {
             *pos += 1;
-            lhs = new_binop(TokenType::NE, lhs, rel(tokens, pos));
+            lhs = Node::new_binop(TokenType::NE, lhs, rel(tokens, pos));
         }
         return lhs;
     }
@@ -290,7 +298,7 @@ fn logor(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 fn assign(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let lhs = logor(tokens, pos);
     if consume(TokenType::Equal, tokens, pos) {
-        return new_binop(TokenType::Equal, lhs, logor(tokens, pos));
+        return Node::new_binop(TokenType::Equal, lhs, logor(tokens, pos));
     }
     return lhs;
 }
@@ -500,7 +508,7 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         node = Node::new(NodeType::Vardef(
             name,
             None,
-            Scope::Global(String::new(), size_of(&*ty), false),
+            Scope::Global(String::new(), size_of(&ty), false),
         ));
     }
     node.ty = ty;

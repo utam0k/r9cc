@@ -145,7 +145,7 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
         Vardef(name, init_may, _) => {
             let stacksize = *STACKSIZE.lock().unwrap();
             *STACKSIZE.lock().unwrap() = roundup(stacksize, align_of(&node.ty));
-            *STACKSIZE.lock().unwrap() += size_of(&*node.ty);
+            *STACKSIZE.lock().unwrap() += size_of(&node.ty);
             let offset = *STACKSIZE.lock().unwrap();
 
             env.vars.insert(
@@ -238,9 +238,11 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
         Return(expr) => node.op = Return(Box::new(walk(*expr, env, true))),
         Sizeof(mut expr) => {
             expr = Box::new(walk(*expr, env, false));
-
-            node.op = Num(size_of(&*expr.ty) as i32);
-            node.ty.ty = Ctype::Int;
+            node = Node::new_int(size_of(&expr.ty) as i32)
+        }
+        Alignof(mut expr) => {
+            expr = Box::new(walk(*expr, env, false));
+            node = Node::new_int(align_of(&expr.ty) as i32)
         }
         Call(name, args) => {
             let mut new_args = vec![];

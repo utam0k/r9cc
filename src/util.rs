@@ -1,6 +1,6 @@
 use parse::{Type, Ctype};
 
-pub fn size_of(ty: &Type) -> usize {
+pub fn size_of(ty: &Box<Type>) -> usize {
     use self::Ctype::*;
     match ty.ty {
         Char => 1,

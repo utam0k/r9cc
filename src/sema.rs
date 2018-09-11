@@ -1,6 +1,6 @@
 use parse::{Node, NodeType, Type, Ctype};
 use token::TokenType;
-use util::size_of;
+use util::{size_of, align_of, roundup};
 
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -143,6 +143,8 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
             }
         }
         Vardef(name, init_may, _) => {
+            let stacksize = *STACKSIZE.lock().unwrap();
+            *STACKSIZE.lock().unwrap() = roundup(stacksize, align_of(&node.ty));
             *STACKSIZE.lock().unwrap() += size_of(&*node.ty);
             let offset = *STACKSIZE.lock().unwrap();
 

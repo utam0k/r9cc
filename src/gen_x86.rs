@@ -1,5 +1,6 @@
 use gen_ir::{IROp, Function, IR};
 use sema::{Scope, Var};
+use util::roundup;
 use REGS;
 use REGS8;
 use REGS32;
@@ -63,7 +64,7 @@ fn gen(f: Function) {
     print!("{}:\n", f.name);
     print!("  push rbp\n");
     print!("  mov rbp, rsp\n");
-    print!("  sub rsp, {}\n", f.stacksize);
+    print!("  sub rsp, {}\n", roundup(f.stacksize, 16));
     print!("  push r12\n");
     print!("  push r13\n");
     print!("  push r14\n");

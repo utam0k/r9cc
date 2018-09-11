@@ -9,3 +9,17 @@ pub fn size_of(ty: &Type) -> usize {
         Ary(ref ary_of, len) => size_of(&*ary_of) * len,
     }
 }
+
+pub fn align_of(ty: &Box<Type>) -> usize {
+    use self::Ctype::*;
+    match ty.ty {
+        Char => 1,
+        Int => 4,
+        Ptr(_) => 8,
+        Ary(ref ary_of, _) => align_of(ary_of),
+    }
+}
+
+pub fn roundup(x: usize, align: usize) -> usize {
+    (x + align - 1) & !(align - 1)
+}

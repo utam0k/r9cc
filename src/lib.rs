@@ -1,5 +1,6 @@
 pub mod gen_x86;
 pub mod gen_ir;
+pub mod irdump;
 pub mod parse;
 pub mod regalloc;
 pub mod token;

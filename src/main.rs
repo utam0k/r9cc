@@ -1,7 +1,8 @@
 extern crate r9cc;
 
 use r9cc::gen_x86::gen_x86;
-use r9cc::gen_ir::{gen_ir, dump_ir};
+use r9cc::gen_ir::gen_ir;
+use r9cc::irdump::dump_ir;
 use r9cc::parse::parse;
 use r9cc::regalloc::alloc_regs;
 use r9cc::token::tokenize;

@@ -1,7 +1,7 @@
 // Compile AST to intermediate code that has infinite number of registers.
 // Base pointer is always assigned to r0.
 
-use parse::{Node, NodeType, Ctype};
+use parse::{Node, NodeType, Ctype, Type};
 use token::TokenType;
 use util::size_of;
 use sema::Scope;
@@ -133,9 +133,50 @@ fn label(x: Option<usize>) {
     add(IROp::Label, x, None);
 }
 
-fn gen_lval(node: Node) -> Option<usize> {
+fn choose_insn(ty: &Box<Type>, op8: IROp, op32: IROp, op64: IROp) -> IROp {
+    match size_of(ty) {
+        1 => op8,
+        4 => op32,
+        8 => op64,
+        _ => unreachable!(),
+    }
+}
+
+fn load_insn(node: &Box<Type>) -> IROp {
+    use self::IROp::*;
+    choose_insn(node, Load8, Load32, Load64)
+}
+
+fn store_insn(node: &Box<Type>) -> IROp {
+    use self::IROp::*;
+    choose_insn(node, Store8, Store32, Store64)
+}
+
+fn store_arg_insn(node: &Box<Type>) -> IROp {
+    use self::IROp::*;
+    choose_insn(node, Store8Arg, Store32Arg, Store64Arg)
+}
+
+// In C, all expressions that can be written on the left-hand side of
+// the '=' operator must have an address in memory. In other words, if
+// you can apply the '&' operator to take an address of some
+// expression E, you can assign E to a new value.
+//
+// Other expressions, such as `1+2`, cannot be written on the lhs of
+// '=', since they are just temporary values that don't have an address.
+//
+// The stuff that can be written on the lhs of '=' is called lvalue.
+// Other values are called rvalue. An lvalue is essentially an address.
+//
+// When lvalues appear on the rvalue context, they are converted to
+// rvalues by loading their values from their addresses. You can think
+// '&' as an operator that suppresses such automatic lvalue-to-rvalue
+// conversion.
+//
+// This function evaluates a given node as an lvalue.
+fn gen_lval(node: Box<Node>) -> Option<usize> {
     match node.op {
-        NodeType::Deref(expr) => gen_expr(*expr),
+        NodeType::Deref(expr) => gen_expr(expr),
         NodeType::Lvar(Scope::Local(offset)) => {
             let r = Some(*NREG.lock().unwrap());
             *NREG.lock().unwrap() += 1;
@@ -153,15 +194,16 @@ fn gen_lval(node: Node) -> Option<usize> {
 }
 
 fn gen_binop(ty: IROp, lhs: Box<Node>, rhs: Box<Node>) -> Option<usize> {
-    let r1 = gen_expr(*lhs);
-    let r2 = gen_expr(*rhs);
+    let r1 = gen_expr(lhs);
+    let r2 = gen_expr(rhs);
 
     add(ty, r1, r2);
     kill(r2);
     return r1;
 }
 
-fn gen_expr(node: Node) -> Option<usize> {
+fn gen_expr(node: Box<Node>) -> Option<usize> {
+    let node = *node;
     match node.op {
         NodeType::Num(val) => {
             let r = Some(*NREG.lock().unwrap());
@@ -173,9 +215,9 @@ fn gen_expr(node: Node) -> Option<usize> {
             let x = Some(*NLABEL.lock().unwrap());
             *NLABEL.lock().unwrap() += 1;
 
-            let r1 = gen_expr(*lhs);
+            let r1 = gen_expr(lhs);
             add(IROp::Unless, r1, x);
-            let r2 = gen_expr(*rhs);
+            let r2 = gen_expr(rhs);
             add(IROp::Mov, r1, r2);
             kill(r2);
             add(IROp::Unless, r1, x);
@@ -189,13 +231,13 @@ fn gen_expr(node: Node) -> Option<usize> {
             let y = Some(*NLABEL.lock().unwrap());
             *NLABEL.lock().unwrap() += 1;
 
-            let r1 = gen_expr(*lhs);
+            let r1 = gen_expr(lhs);
             add(IROp::Unless, r1, x);
             add(IROp::Imm, r1, Some(1));
             add(IROp::Jmp, y, None);
             label(x);
 
-            let r2 = gen_expr(*rhs);
+            let r2 = gen_expr(rhs);
             add(IROp::Mov, r1, r2);
             kill(r2);
             add(IROp::Unless, r1, y);
@@ -205,22 +247,15 @@ fn gen_expr(node: Node) -> Option<usize> {
         }
         NodeType::Lvar(_) |
         NodeType::Gvar(_, _, _) => {
-            let op;
-            {
-                op = match node.ty.ty {
-                    Ctype::Char => IROp::Load8,
-                    Ctype::Int => IROp::Load32,
-                    _ => IROp::Load64,
-                };
-            }
-            let r = gen_lval(node);
+            let op = load_insn(&Box::new(*node.ty.clone()));
+            let r = gen_lval(Box::new(node));
             add(op, r, r);
             return r;
         }
         NodeType::Call(name, args) => {
             let mut args_ir: [usize; 6] = [0; 6];
             for i in 0..args.len() {
-                args_ir[i] = gen_expr(args[i].clone()).unwrap();
+                args_ir[i] = gen_expr(Box::new(args[i].clone())).unwrap();
             }
 
             let r = Some(*NREG.lock().unwrap());
@@ -233,22 +268,10 @@ fn gen_expr(node: Node) -> Option<usize> {
             }
             return r;
         }
-        NodeType::Addr(expr) => gen_lval(*expr),
+        NodeType::Addr(expr) => gen_lval(expr),
         NodeType::Deref(expr) => {
-            let op: IROp;
-            {
-                op = match &expr.ty.ty {
-                    Ctype::Ptr(ptr_to) => {
-                        match ptr_to.ty {
-                            Ctype::Char => IROp::Load8,
-                            Ctype::Int => IROp::Load32,
-                            _ => IROp::Load64,
-                        }
-                    }
-                    _ => IROp::Load64,
-                };
-            }
-            let r = gen_expr(*expr);
+            let op = load_insn(&Box::new(*node.ty));
+            let r = gen_expr(expr);
             add(op, r, r);
             return r;
         }
@@ -271,27 +294,23 @@ fn gen_expr(node: Node) -> Option<usize> {
         NodeType::BinOp(op, lhs, rhs) => {
             match op {
                 TokenType::Equal => {
-                    let rhs = gen_expr(*rhs);
-                    let lhs = gen_lval(*lhs);
-                    match node.ty.ty {
-                        Ctype::Char => add(IROp::Store8, lhs, rhs),
-                        Ctype::Int => add(IROp::Store32, lhs, rhs),
-                        _ => add(IROp::Store64, lhs, rhs),
-                    }
+                    let rhs = gen_expr(rhs);
+                    let lhs = gen_lval(lhs);
+                    add(store_insn(&Box::new(*node.ty)), lhs, rhs);
                     kill(rhs);
                     return lhs;
                 }
                 TokenType::Plus | TokenType::Minus => {
                     let insn = IROp::from(op);
                     if let Ctype::Ptr(ref ptr_to) = lhs.ty.ty.clone() {
-                        let rhs = gen_expr(*rhs);
+                        let rhs = gen_expr(rhs);
                         let r = Some(*NREG.lock().unwrap());
                         *NREG.lock().unwrap() += 1;
                         add(IROp::Imm, r, Some(size_of(ptr_to)));
                         add(IROp::Mul, rhs, r);
                         kill(r);
 
-                        let lhs = gen_expr(*lhs);
+                        let lhs = gen_expr(lhs);
                         add(insn, lhs, rhs);
                         kill(rhs);
                         lhs
@@ -300,15 +319,15 @@ fn gen_expr(node: Node) -> Option<usize> {
                     }
                 }
                 TokenType::EQ => {
-                    let lhs = gen_expr(*lhs);
-                    let rhs = gen_expr(*rhs);
+                    let lhs = gen_expr(lhs);
+                    let rhs = gen_expr(rhs);
                     add(IROp::EQ, lhs, rhs);
                     kill(rhs);
                     lhs
                 }
                 TokenType::NE => {
-                    let lhs = gen_expr(*lhs);
-                    let rhs = gen_expr(*rhs);
+                    let lhs = gen_expr(lhs);
+                    let rhs = gen_expr(rhs);
                     add(IROp::NE, lhs, rhs);
                     kill(rhs);
                     lhs
@@ -325,15 +344,11 @@ fn gen_stmt(node: Node) {
         NodeType::Null => return,
         NodeType::Vardef(_, init_may, Scope::Local(offset)) => {
             if let Some(init) = init_may {
-                let rhs = gen_expr(*init);
+                let rhs = gen_expr(init);
                 let lhs = Some(*NREG.lock().unwrap());
                 *NREG.lock().unwrap() += 1;
                 add(IROp::Bprel, lhs, Some(offset));
-                match node.ty.ty {
-                    Ctype::Char => add(IROp::Store8, lhs, rhs),
-                    Ctype::Int => add(IROp::Store32, lhs, rhs),
-                    _ => add(IROp::Store64, lhs, rhs),
-                }
+                add(store_insn(&Box::new(*node.ty)), lhs, rhs);
                 kill(lhs);
                 kill(rhs);
             }
@@ -345,7 +360,7 @@ fn gen_stmt(node: Node) {
                 *NLABEL.lock().unwrap() += 1;
                 let y = Some(*NLABEL.lock().unwrap());
                 *NLABEL.lock().unwrap() += 1;
-                let r = gen_expr(*cond.clone());
+                let r = gen_expr(cond.clone());
                 add(IROp::Unless, r, x);
                 kill(r);
                 gen_stmt(*then.clone());
@@ -358,7 +373,7 @@ fn gen_stmt(node: Node) {
 
             let x = Some(*NLABEL.lock().unwrap());
             *NLABEL.lock().unwrap() += 1;
-            let r = gen_expr(*cond);
+            let r = gen_expr(cond);
             add(IROp::Unless, r, x);
             kill(r);
             gen_stmt(*then);
@@ -372,7 +387,7 @@ fn gen_stmt(node: Node) {
 
             gen_stmt(*init);
             label(x);
-            let r2 = gen_expr(*cond);
+            let r2 = gen_expr(cond);
             add(IROp::Unless, r2, y);
             kill(r2);
             gen_stmt(*body);
@@ -385,12 +400,12 @@ fn gen_stmt(node: Node) {
             *NLABEL.lock().unwrap() += 1;
             label(x);
             gen_stmt(*body);
-            let r = gen_expr(*cond);
+            let r = gen_expr(cond);
             add(IROp::If, r, x);
             kill(r);
         }
         NodeType::Return(expr) => {
-            let r = gen_expr(*expr);
+            let r = gen_expr(expr);
 
             // Statement expression (GNU extension)
             if *RETURN_LABEL.lock().unwrap() != 0 {
@@ -404,7 +419,7 @@ fn gen_stmt(node: Node) {
             kill(r);
         }
         NodeType::ExprStmt(expr) => {
-            let r = gen_expr(*expr);
+            let r = gen_expr(expr);
             kill(r);
         }
         NodeType::CompStmt(stmts) => {
@@ -426,11 +441,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
 
                 for i in 0..args.len() {
                     let arg = &args[i];
-                    let op = match arg.ty.ty {
-                        Ctype::Char => IROp::Store8Arg,
-                        Ctype::Int => IROp::Store32Arg,
-                        _ => IROp::Store64Arg,
-                    };
+                    let op = store_arg_insn(&Box::new(*arg.clone().ty));
                     if let NodeType::Vardef(_, _, Scope::Local(offset)) = arg.op {
                         add(op, Some(offset), Some(i));
                     } else {

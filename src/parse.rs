@@ -508,7 +508,7 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         node = Node::new(NodeType::Vardef(
             name,
             None,
-            Scope::Global(String::new(), size_of(&ty), false),
+            Scope::Global(String::new(), size_of(Box::new(&ty)), false),
         ));
     }
     node.ty = ty;

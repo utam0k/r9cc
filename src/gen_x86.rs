@@ -16,7 +16,7 @@ lazy_static! {
 }
 
 fn escape(s: String, len: usize) -> String {
-    let mut buf = String::new();
+    let mut sb = String::new();
     for i in 0..len {
         if let Some(c) = s.chars().collect::<Vec<char>>().get(i) {
             // Issue: https://github.com/rust-lang/rfcs/issues/751
@@ -32,18 +32,18 @@ fn escape(s: String, len: usize) -> String {
                 _ => None,
             };
             if let Some(esc) = escaped {
-                buf.push('\\');
-                buf.push(esc);
+                sb.push('\\');
+                sb.push(esc);
             } else if c.is_ascii_graphic() || c == &' ' {
-                buf.push(c.clone());
+                sb.push(c.clone());
             } else {
-                buf.push_str(&format!("\\{:o}", c.clone() as i8));
+                sb.push_str(&format!("\\{:o}", c.clone() as i8));
             }
         } else {
-            buf.push_str("\\000");
+            sb.push_str("\\000");
         }
     }
-    return buf;
+    return sb;
 }
 
 fn emit_cmp(ir: IR, insn: &'static str) {

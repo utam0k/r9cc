@@ -318,20 +318,8 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                         gen_binop(insn, lhs, rhs)
                     }
                 }
-                TokenType::EQ => {
-                    let lhs = gen_expr(lhs);
-                    let rhs = gen_expr(rhs);
-                    add(IROp::EQ, lhs, rhs);
-                    kill(rhs);
-                    lhs
-                }
-                TokenType::NE => {
-                    let lhs = gen_expr(lhs);
-                    let rhs = gen_expr(rhs);
-                    add(IROp::NE, lhs, rhs);
-                    kill(rhs);
-                    lhs
-                }
+                TokenType::EQ => gen_binop(IROp::EQ, lhs, rhs),
+                TokenType::NE => gen_binop(IROp::NE, lhs, rhs),
                 _ => gen_binop(IROp::from(op), lhs, rhs),
             }
         }

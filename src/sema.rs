@@ -31,7 +31,7 @@ impl Env {
     pub fn new(next: Option<Box<Env>>) -> Self {
         Env {
             vars: HashMap::new(),
-            next: next,
+            next,
         }
     }
 
@@ -70,11 +70,7 @@ pub struct Var {
 
 impl Var {
     fn new(ty: Box<Type>, name: String, scope: Scope) -> Self {
-        Var {
-            ty: ty,
-            name: name,
-            scope: scope,
-        }
+        Var { ty, name, scope }
     }
 
     fn new_global(ty: Box<Type>, name: String, data: String, len: usize, is_extern: bool) -> Self {

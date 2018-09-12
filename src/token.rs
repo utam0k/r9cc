@@ -71,7 +71,7 @@ pub struct Symbol {
 
 impl Symbol {
     fn new(name: &'static str, ty: TokenType) -> Self {
-        Symbol { name: name, ty: ty }
+        Symbol { name, ty }
     }
 }
 
@@ -100,6 +100,12 @@ lazy_static! {
 pub struct Token {
     pub ty: TokenType, // Token type
     pub input: String, // Token string (for error reporting)
+}
+
+impl Token {
+    pub fn new(ty: TokenType, input: String) -> Self {
+        Token { ty, input }
+    }
 }
 
 fn escaped(c: &char) -> Option<char> {
@@ -213,10 +219,10 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
         if c == &'\'' {
             pos += 1;
             let val = read_char(&p, &mut pos);
-            tokens.push(Token {
-                ty: TokenType::Num(val.clone() as u8 as i32),
-                input: p.clone().into_iter().collect(),
-            });
+            tokens.push(Token::new(
+                TokenType::Num(val.clone() as u8 as i32),
+                p.clone().into_iter().collect(),
+            ));
             continue;
         }
 
@@ -233,10 +239,10 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
                 continue;
             }
 
-            tokens.push(Token {
-                ty: symbol.ty.clone(),
-                input: p.clone().into_iter().collect(),
-            });
+            tokens.push(Token::new(
+                symbol.ty.clone(),
+                p.clone().into_iter().collect(),
+            ));
             pos += len;
             continue 'outer;
         }
@@ -247,20 +253,14 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
 
             let (sb, len) = read_string(&p, pos);
             pos += len;
-            let token = Token {
-                ty: TokenType::Str(sb, len),
-                input: p.clone().into_iter().collect(),
-            };
+            let token = Token::new(TokenType::Str(sb, len), p.clone().into_iter().collect());
             tokens.push(token);
             continue;
         }
 
         // Single-letter token
         if let Some(ty) = TokenType::new_single_letter(c) {
-            let token = Token {
-                ty: ty,
-                input: p.clone().into_iter().collect(),
-            };
+            let token = Token::new(ty, p.clone().into_iter().collect());
             pos += 1;
             tokens.push(token);
             continue;
@@ -279,10 +279,10 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
 
             let name = &p[pos..pos + len];
             pos += len;
-            let token = Token {
-                ty: TokenType::Ident(name.into_iter().collect()),
-                input: p.clone().into_iter().collect(),
-            };
+            let token = Token::new(
+                TokenType::Ident(name.into_iter().collect()),
+                p.clone().into_iter().collect(),
+            );
             tokens.push(token);
             continue;
         }
@@ -298,10 +298,7 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
                 pos += 1;
             }
 
-            let token = Token {
-                ty: TokenType::Num(val as i32),
-                input: p.clone().into_iter().collect(),
-            };
+            let token = Token::new(TokenType::Num(val as i32), p.clone().into_iter().collect());
             tokens.push(token);
             continue;
         }

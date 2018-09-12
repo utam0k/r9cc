@@ -87,7 +87,7 @@ impl Default for Type {
 
 impl Type {
     pub fn new(ty: Ctype) -> Self {
-        Type { ty: ty }
+        Type { ty }
     }
 }
 
@@ -100,7 +100,7 @@ pub struct Node {
 impl Node {
     pub fn new(op: NodeType) -> Self {
         Self {
-            op: op,
+            op,
             ty: Box::new(Type::default()),
         }
     }

@@ -46,9 +46,9 @@ pub struct Function {
 impl Function {
     fn new(name: String, ir: Vec<IR>, stacksize: usize) -> Self {
         Function {
-            name: name,
-            ir: ir,
-            stacksize: stacksize,
+            name,
+            ir,
+            stacksize,
         }
     }
 }
@@ -117,11 +117,7 @@ pub struct IR {
 
 impl IR {
     fn new(op: IROp, lhs: Option<usize>, rhs: Option<usize>) -> Self {
-        Self {
-            op: op,
-            lhs: lhs,
-            rhs: rhs,
-        }
+        Self { op, lhs, rhs }
     }
 }
 

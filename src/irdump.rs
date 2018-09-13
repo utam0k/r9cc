@@ -59,7 +59,7 @@ impl fmt::Display for IR {
 
         let lhs = self.lhs.unwrap();
         match info.ty {
-            Label => write!(f, ".L{}=>", lhs),
+            Label => write!(f, ".L{}:", lhs),
             LabelAddr => {
                 match self.op {
                     IROp::LabelAddr(ref name) => write!(f, "  {} r{}, {}", info.name, lhs, name),

@@ -279,7 +279,6 @@ pub fn sema(nodes: Vec<Node>) -> (Vec<Node>, Vec<Var>) {
 
     for mut node in nodes {
         if let NodeType::Vardef(name, _, Scope::Global(data, len, is_extern)) = node.op {
-            *STRLABEL.lock().unwrap() += 1;
             let var = Var::new_global(node.ty, name.clone(), data, len, is_extern);
             GLOBALS.lock().unwrap().push(var.clone());
             topenv.vars.insert(name, var);

@@ -39,15 +39,11 @@ fn alloc(ir_reg: usize) -> usize {
         used_set(i, true);
         return i;
     }
-    panic!("register exhauseted");
+    panic!("register exhauseted: {}", ir_reg);
 }
 
 fn visit(irv: &mut Vec<IR>) {
     use self::IRType::*;
-
-    // r0 is a reserved register that is always mapped to rbp.
-    reg_map_set(0, 0);
-    used_set(0, true);
 
     for i in 0..irv.len() {
         let mut ir = irv[i].clone();
@@ -64,7 +60,7 @@ fn visit(irv: &mut Vec<IR>) {
                 match ir.op {
                     IROp::Call(name, nargs, args) => {
                         let mut args_new: [usize; 6] = [0; 6];
-                        for i in 0..args.len() {
+                        for i in 0..nargs {
                             args_new[i] = alloc(args[i]);
                         }
                         ir.op = IROp::Call(name, nargs, args_new);

@@ -9,7 +9,7 @@ use sema::Scope;
 use std::sync::Mutex;
 
 lazy_static!{
-    static ref NREG: Mutex<usize> = Mutex::new(1);
+    static ref NREG: Mutex<usize> = Mutex::new(0);
     static ref NLABEL: Mutex<usize> = Mutex::new(1);
     static ref RETURN_LABEL: Mutex<usize> = Mutex::new(0);
     static ref RETURN_REG: Mutex<usize> = Mutex::new(0);
@@ -192,7 +192,6 @@ fn gen_lval(node: Box<Node>) -> Option<usize> {
 fn gen_binop(ty: IROp, lhs: Box<Node>, rhs: Box<Node>) -> Option<usize> {
     let r1 = gen_expr(lhs);
     let r2 = gen_expr(rhs);
-
     add(ty, r1, r2);
     kill(r2);
     return r1;
@@ -421,7 +420,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
         match node.op {
             NodeType::Func(name, args, body, stacksize) => {
                 *CODE.lock().unwrap() = vec![];
-                *NREG.lock().unwrap() = 1;
+                // *NREG.lock().unwrap() = 0;
 
                 for i in 0..args.len() {
                     let arg = &args[i];

@@ -14,31 +14,30 @@ use std::io::prelude::*;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut input: String;
+    let mut input = String::new();
     let mut dump_tokens = false;
     let mut dump_ir1 = false;
     let mut dump_ir2 = false;
+    let filename: String;
 
     if args.len() == 3 && args[1] == "-dump-ir1" {
         dump_ir1 = true;
-        input = args[2].clone();
+        filename = args[2].clone();
     } else if args.len() == 3 && args[1] == "-dump-ir2" {
         dump_ir2 = true;
-        input = args[2].clone();
+        filename = args[2].clone();
     } else if args.len() == 3 && args[1] == "-dump-tokens" {
         dump_tokens = true;
-        input = args[2].clone();
-    } else if args.len() == 3 && args[1] == "-path" {
-        input = String::new();
-        let mut file = File::open(args[2].clone()).unwrap();
-        file.read_to_string(&mut input).unwrap();
+        filename = args[2].clone();
     } else {
         if args.len() != 2 {
-            eprint!("Usage: 9cc [-dump-ir1] [-dump-ir2] <code>\n");
+            eprint!("Usage: 9cc [-dump-ir1] [-dump-ir2] <file>\n");
             return;
         }
-        input = args[1].clone();
+        filename = args[1].clone();
     }
+    let mut file = File::open(filename).unwrap();
+    file.read_to_string(&mut input).unwrap();
 
     // Tokenize and parse.
     let tokens = tokenize(input.chars().collect());

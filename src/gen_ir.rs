@@ -3,7 +3,6 @@
 
 use parse::{Node, NodeType, Ctype, Type};
 use token::TokenType;
-use util::size_of;
 use sema::Scope;
 
 use std::sync::Mutex;
@@ -130,7 +129,7 @@ fn label(x: Option<usize>) {
 }
 
 fn choose_insn(ty: Box<&Type>, op8: IROp, op32: IROp, op64: IROp) -> IROp {
-    match size_of(ty) {
+    match ty.size {
         1 => op8,
         4 => op32,
         8 => op64,
@@ -301,7 +300,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                         let rhs = gen_expr(rhs);
                         let r = Some(*NREG.lock().unwrap());
                         *NREG.lock().unwrap() += 1;
-                        add(IROp::Imm, r, Some(size_of(Box::new(ptr_to))));
+                        add(IROp::Imm, r, Some(ptr_to.size));
                         add(IROp::Mul, rhs, r);
                         kill(r);
 

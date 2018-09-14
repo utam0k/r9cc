@@ -1,6 +1,6 @@
 use token::{Token, TokenType};
 use sema::Scope;
-use util::size_of;
+use util::roundup;
 
 fn expect(ty: TokenType, t: &Token, pos: &mut usize) {
     if t.ty != ty {
@@ -24,10 +24,30 @@ fn consume(ty: TokenType, tokens: &Vec<Token>, pos: &mut usize) -> bool {
     return true;
 }
 
-fn get_type(t: &Token) -> Option<Type> {
+fn is_typename(t: &Token) -> bool {
+    use self::TokenType::*;
+    t.ty == Int || t.ty == Char || t.ty == Struct
+}
+
+fn read_type(t: &Token, tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
     match t.ty {
-        TokenType::Int => Some(Type::new(Ctype::Int)),
-        TokenType::Char => Some(Type::new(Ctype::Char)),
+        TokenType::Int => {
+            *pos += 1;
+            Some(Type::int_ty())
+        }
+        TokenType::Char => {
+            *pos += 1;
+            Some(Type::char_ty())
+        }
+        TokenType::Struct => {
+            *pos += 1;
+            expect(TokenType::LeftBrace, &tokens[*pos], pos);
+            let mut members = vec![];
+            while !consume(TokenType::RightBrace, tokens, pos) {
+                members.push(decl(tokens, pos))
+            }
+            Some(Type::new_struct(members))
+        }
         _ => None,
     }
 }
@@ -37,6 +57,7 @@ pub enum NodeType {
     Num(i32), // Number literal
     Str(String, usize), // String literal, (data, len)
     Ident(String), // Identifier
+    Struct(Vec<Node>), // Struct
     Vardef(String, Option<Box<Node>>, Scope), // Variable definition, name = init
     Lvar(Scope), // Variable reference
     Gvar(String, String, usize), // Variable reference, (name, data, len)
@@ -66,6 +87,7 @@ pub enum Ctype {
     Char,
     Ptr(Box<Type>), // ptr of
     Ary(Box<Type>, usize), // ary of, len
+    Struct(Vec<Type>), // members
 }
 
 impl Default for Ctype {
@@ -77,17 +99,68 @@ impl Default for Ctype {
 #[derive(Debug, Clone)]
 pub struct Type {
     pub ty: Ctype,
+    pub size: usize,
+    pub align: usize,
 }
 
 impl Default for Type {
     fn default() -> Type {
-        Type { ty: Ctype::default() }
+        Type {
+            ty: Ctype::default(),
+            size: 4,
+            align: 4,
+        }
     }
 }
 
 impl Type {
-    pub fn new(ty: Ctype) -> Self {
-        Type { ty }
+    pub fn new(ty: Ctype, size: usize) -> Self {
+        Type {
+            ty,
+            size,
+            align: size,
+        }
+    }
+
+    pub fn char_ty() -> Self {
+        Type::new(Ctype::Char, 1)
+    }
+
+    pub fn int_ty() -> Self {
+        Type::new(Ctype::Int, 4)
+    }
+
+    pub fn ptr_to(base: Box<Type>) -> Self {
+        Type::new(Ctype::Ptr(base), 8)
+    }
+
+    pub fn ary_of(base: Box<Type>, len: usize) -> Self {
+        let align = base.align;
+        let size = base.size * len;
+        let mut ty = Type::new(Ctype::Ary(base, len), size);
+        ty.align = align;
+        ty
+    }
+
+    pub fn new_struct(members: Vec<Node>) -> Self {
+        // let mut struct_members = vec![];
+        let mut off = 0;
+        let mut ty: Type = Type::new(Ctype::Struct(vec![]), 0);
+        for node in members {
+            if let NodeType::Vardef(_, _, _) = node.op {
+                let t = node.ty;
+                off = roundup(off, t.align);
+                off += t.size;
+
+                if ty.align < t.align {
+                    ty.align = t.align;
+                }
+            } else {
+                panic!();
+            }
+        }
+        ty.size = roundup(off, ty.align);
+        ty
     }
 }
 
@@ -105,7 +178,7 @@ impl Node {
         }
     }
 
-    pub fn new_int(val: i32) -> Self {
+    pub fn int_ty(val: i32) -> Self {
         Node::new(NodeType::Num(val))
     }
 
@@ -126,14 +199,12 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     match t.ty {
         TokenType::Num(val) => {
             let mut node = Node::new(NodeType::Num(val));
-            node.ty = Box::new(Type::new(Ctype::Int));
+            node.ty = Box::new(Type::int_ty());
             node
         }
         TokenType::Str(ref str, len) => {
             let mut node = Node::new(NodeType::Str(str.clone(), len));
-            node.ty = Box::new(Type::new(
-                Ctype::Ary(Box::new(Type::new(Ctype::Char)), str.len()),
-            ));
+            node.ty = Box::new(Type::ary_of(Box::new(Type::char_ty()), str.len()));
             node
         }
         TokenType::Ident(ref name) => {
@@ -305,11 +376,9 @@ fn assign(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
 fn ctype(tokens: &Vec<Token>, pos: &mut usize) -> Type {
     let t = &tokens[*pos];
-    if let Some(mut ty) = get_type(t) {
-        *pos += 1;
-
+    if let Some(mut ty) = read_type(t, tokens, pos) {
         while consume(TokenType::Mul, tokens, pos) {
-            ty = Type::new(Ctype::Ptr(Box::new(ty)));
+            ty = Type::ptr_to(Box::new(ty));
         }
         ty
     } else {
@@ -329,7 +398,7 @@ fn read_array(mut ty: Box<Type>, tokens: &Vec<Token>, pos: &mut usize) -> Box<Ty
         }
     }
     for val in v {
-        ty = Box::new(Type::new(Ctype::Ary(ty, val)));
+        ty = Box::new(Type::ary_of(ty, val));
     }
     ty
 }
@@ -384,7 +453,7 @@ fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
 fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     match tokens[*pos].ty {
-        TokenType::Int | TokenType::Char => return decl(tokens, pos),
+        TokenType::Int | TokenType::Char | TokenType::Struct => return decl(tokens, pos),
         TokenType::If => {
             let mut els = None;
             *pos += 1;
@@ -400,9 +469,10 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         TokenType::For => {
             *pos += 1;
             expect(TokenType::LeftParen, &tokens[*pos], pos);
-            let init: Box<Node> = match get_type(&tokens[*pos]) {
-                Some(_) => Box::new(decl(tokens, pos)),
-                _ => Box::new(expr_stmt(tokens, pos)),
+            let init: Box<Node> = if is_typename(&tokens[*pos]) {
+                Box::new(decl(tokens, pos))
+            } else {
+                Box::new(expr_stmt(tokens, pos))
             };
             let cond = Box::new(assign(&tokens, pos));
             expect(TokenType::Semicolon, &tokens[*pos], pos);
@@ -508,7 +578,7 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         node = Node::new(NodeType::Vardef(
             name,
             None,
-            Scope::Global(String::new(), size_of(Box::new(&ty)), false),
+            Scope::Global(String::new(), ty.size, false),
         ));
     }
     node.ty = ty;

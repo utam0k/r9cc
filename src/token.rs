@@ -8,6 +8,7 @@ pub enum TokenType {
     Extern, // "int"
     Int, // "int"
     Char, // "char"
+    Struct, // "struct"
     Plus, // +
     Minus, // -
     Mul, // *
@@ -86,8 +87,9 @@ lazy_static! {
         Symbol::new("if" , TokenType::If),
         Symbol::new("int" , TokenType::Int),
         Symbol::new("return" , TokenType::Return),
-        Symbol::new("while" , TokenType::While),
         Symbol::new("sizeof" , TokenType::Sizeof),
+        Symbol::new("struct" , TokenType::Struct),
+        Symbol::new("while" , TokenType::While),
         Symbol::new("&&", TokenType::Logand),
         Symbol::new("||", TokenType::Logor),
         Symbol::new("==", TokenType::EQ),

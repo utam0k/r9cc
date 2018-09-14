@@ -1,6 +1,6 @@
 use parse::{Node, NodeType, Type, Ctype};
 use token::TokenType;
-use util::{size_of, align_of, roundup};
+use util::roundup;
 
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -86,7 +86,7 @@ fn maybe_decay(base: Node, decay: bool) -> Node {
 
     if let Ctype::Ary(ary_of, _) = base.ty.ty.clone() {
         let mut node = Node::new(NodeType::Addr(Box::new(base)));
-        node.ty = Box::new(Type::new(Ctype::Ptr(ary_of.clone())));
+        node.ty = Box::new(Type::ptr_to(ary_of.clone()));
         node
     } else {
         base
@@ -140,8 +140,8 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
         }
         Vardef(name, init_may, _) => {
             let stacksize = *STACKSIZE.lock().unwrap();
-            *STACKSIZE.lock().unwrap() = roundup(stacksize, align_of(Box::new(&node.ty)));
-            *STACKSIZE.lock().unwrap() += size_of(Box::new(&node.ty));
+            *STACKSIZE.lock().unwrap() = roundup(stacksize, node.ty.align);
+            *STACKSIZE.lock().unwrap() += node.ty.size;
             let offset = *STACKSIZE.lock().unwrap();
 
             env.vars.insert(
@@ -220,7 +220,7 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
         Addr(mut expr) => {
             expr = Box::new(walk(*expr, env, true));
             check_lval(&*expr);
-            node.ty = Box::new(Type::new(Ctype::Ptr(expr.ty.clone())));
+            node.ty = Box::new(Type::ptr_to(expr.ty.clone()));
             node.op = Addr(expr);
         }
         Deref(mut expr) => {
@@ -234,11 +234,11 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
         Return(expr) => node.op = Return(Box::new(walk(*expr, env, true))),
         Sizeof(mut expr) => {
             expr = Box::new(walk(*expr, env, false));
-            node = Node::new_int(size_of(Box::new(&expr.ty)) as i32)
+            node = Node::int_ty(expr.ty.size as i32)
         }
         Alignof(mut expr) => {
             expr = Box::new(walk(*expr, env, false));
-            node = Node::new_int(align_of(Box::new(&expr.ty)) as i32)
+            node = Node::int_ty(expr.ty.align as i32)
         }
         Call(name, args) => {
             let mut new_args = vec![];
@@ -265,7 +265,7 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
         ExprStmt(expr) => node.op = ExprStmt(Box::new(walk(*expr, env, true))),
         StmtExpr(body) => {
             node.op = StmtExpr(Box::new(walk(*body, env, true)));
-            node.ty = Box::new(Type::new(Ctype::Int));
+            node.ty = Box::new(Type::int_ty())
         }
         Null => (),
         _ => panic!("unknown node type"),

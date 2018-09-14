@@ -2,7 +2,8 @@ use token::{Token, TokenType};
 use sema::Scope;
 use util::roundup;
 
-fn expect(ty: TokenType, t: &Token, pos: &mut usize) {
+fn expect(ty: TokenType, tokens: &Vec<Token>, pos: &mut usize) {
+    let t = &tokens[*pos];
     if t.ty != ty {
         panic!(
             "{:?} ({:?}) expected, but got {:?} ({:?})",
@@ -41,7 +42,7 @@ fn read_type(t: &Token, tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
         }
         TokenType::Struct => {
             *pos += 1;
-            expect(TokenType::LeftBrace, &tokens[*pos], pos);
+            expect(TokenType::LeftBrace, tokens, pos);
             let mut members = vec![];
             while !consume(TokenType::RightBrace, tokens, pos) {
                 members.push(decl(tokens, pos))
@@ -221,17 +222,17 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             while consume(TokenType::Colon, tokens, pos) {
                 args.push(assign(tokens, pos));
             }
-            expect(TokenType::RightParen, &tokens[*pos], pos);
+            expect(TokenType::RightParen, tokens, pos);
             return Node::new(NodeType::Call(name.clone(), args));
         }
         TokenType::LeftParen => {
             if consume(TokenType::LeftBrace, tokens, pos) {
                 let stmt = Box::new(compound_stmt(tokens, pos));
-                expect(TokenType::RightParen, &tokens[*pos], pos);
+                expect(TokenType::RightParen, tokens, pos);
                 return Node::new(NodeType::StmtExpr(stmt));
             }
             let node = assign(tokens, pos);
-            expect(TokenType::RightParen, &tokens[*pos], pos);
+            expect(TokenType::RightParen, tokens, pos);
             node
         }
         _ => panic!("number expected, but got {}", t.input),
@@ -245,7 +246,7 @@ fn postfix(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             NodeType::Deref,
             Node::new_binop(TokenType::Plus, lhs, assign(tokens, pos))
         );
-        expect(TokenType::RightBracket, &tokens[*pos], pos);
+        expect(TokenType::RightBracket, tokens, pos);
     }
     lhs
 }
@@ -392,7 +393,7 @@ fn read_array(mut ty: Box<Type>, tokens: &Vec<Token>, pos: &mut usize) -> Box<Ty
         let len = primary(tokens, pos);
         if let NodeType::Num(n) = len.op {
             v.push(n as usize);
-            expect(TokenType::RightBracket, &tokens[*pos], pos);
+            expect(TokenType::RightBracket, tokens, pos);
         } else {
             panic!("number expected");
         }
@@ -422,7 +423,7 @@ fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         } else {
             init = None
         }
-        expect(TokenType::Semicolon, &tokens[*pos], pos);
+        expect(TokenType::Semicolon, tokens, pos);
         let mut node = Node::new(NodeType::Vardef(name.clone(), init, Scope::Local(0)));
         node.ty = ty;
         node
@@ -447,7 +448,7 @@ fn param(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let expr = assign(tokens, pos);
     let node = new_expr!(NodeType::ExprStmt, expr);
-    expect(TokenType::Semicolon, &tokens[*pos], pos);
+    expect(TokenType::Semicolon, tokens, pos);
     node
 }
 
@@ -457,9 +458,9 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         TokenType::If => {
             let mut els = None;
             *pos += 1;
-            expect(TokenType::LeftParen, &tokens[*pos], pos);
+            expect(TokenType::LeftParen, tokens, pos);
             let cond = assign(&tokens, pos);
-            expect(TokenType::RightParen, &tokens[*pos], pos);
+            expect(TokenType::RightParen, tokens, pos);
             let then = stmt(&tokens, pos);
             if consume(TokenType::Else, tokens, pos) {
                 els = Some(Box::new(stmt(&tokens, pos)));
@@ -468,43 +469,43 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         }
         TokenType::For => {
             *pos += 1;
-            expect(TokenType::LeftParen, &tokens[*pos], pos);
+            expect(TokenType::LeftParen, tokens, pos);
             let init: Box<Node> = if is_typename(&tokens[*pos]) {
                 Box::new(decl(tokens, pos))
             } else {
                 Box::new(expr_stmt(tokens, pos))
             };
             let cond = Box::new(assign(&tokens, pos));
-            expect(TokenType::Semicolon, &tokens[*pos], pos);
+            expect(TokenType::Semicolon, tokens, pos);
             let inc = Box::new(new_expr!(NodeType::ExprStmt, assign(&tokens, pos)));
-            expect(TokenType::RightParen, &tokens[*pos], pos);
+            expect(TokenType::RightParen, tokens, pos);
             let body = Box::new(stmt(&tokens, pos));
             Node::new(NodeType::For(init, cond, inc, body))
         }
         TokenType::While => {
             *pos += 1;
-            expect(TokenType::LeftParen, &tokens[*pos], pos);
+            expect(TokenType::LeftParen, tokens, pos);
             let init = Box::new(Node::new(NodeType::Null));
             let inc = Box::new(Node::new(NodeType::Null));
             let cond = Box::new(assign(&tokens, pos));
-            expect(TokenType::RightParen, &tokens[*pos], pos);
+            expect(TokenType::RightParen, tokens, pos);
             let body = Box::new(stmt(&tokens, pos));
             Node::new(NodeType::For(init, cond, inc, body))
         }
         TokenType::Do => {
             *pos += 1;
             let body = Box::new(stmt(tokens, pos));
-            expect(TokenType::While, &tokens[*pos], pos);
-            expect(TokenType::LeftParen, &tokens[*pos], pos);
+            expect(TokenType::While, tokens, pos);
+            expect(TokenType::LeftParen, tokens, pos);
             let cond = Box::new(assign(tokens, pos));
-            expect(TokenType::RightParen, &tokens[*pos], pos);
-            expect(TokenType::Semicolon, &tokens[*pos], pos);
+            expect(TokenType::RightParen, tokens, pos);
+            expect(TokenType::Semicolon, tokens, pos);
             Node::new(NodeType::DoWhile(body, cond))
         }
         TokenType::Return => {
             *pos += 1;
             let expr = assign(&tokens, pos);
-            expect(TokenType::Semicolon, &tokens[*pos], pos);
+            expect(TokenType::Semicolon, tokens, pos);
             Node::new(NodeType::Return(Box::new(expr)))
         }
         TokenType::LeftBrace => {
@@ -522,7 +523,7 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         _ => {
             let expr = assign(&tokens, pos);
             let node = Node::new(NodeType::ExprStmt(Box::new(expr)));
-            expect(TokenType::Semicolon, &tokens[*pos], pos);
+            expect(TokenType::Semicolon, tokens, pos);
             return node;
         }
     }
@@ -557,10 +558,10 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             while consume(TokenType::Colon, tokens, pos) {
                 args.push(param(tokens, pos));
             }
-            expect(TokenType::RightParen, &tokens[*pos], pos);
+            expect(TokenType::RightParen, tokens, pos);
         }
 
-        expect(TokenType::LeftBrace, &tokens[*pos], pos);
+        expect(TokenType::LeftBrace, tokens, pos);
         let body = compound_stmt(tokens, pos);
         return Node::new(NodeType::Func(name, args, Box::new(body), 0));
     }
@@ -582,7 +583,7 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         ));
     }
     node.ty = ty;
-    expect(TokenType::Semicolon, &tokens[*pos], pos);
+    expect(TokenType::Semicolon, tokens, pos);
     node
 }
 

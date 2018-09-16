@@ -172,6 +172,15 @@ fn store_arg_insn(node: Box<&Type>) -> IROp {
 fn gen_lval(node: Box<Node>) -> Option<usize> {
     match node.op {
         NodeType::Deref(expr) => gen_expr(expr),
+        NodeType::Dot(ref expr, _, ref offset) => {
+            let r1 = gen_lval(expr.clone());
+            let r2 = Some(*NREG.lock().unwrap());
+            *NREG.lock().unwrap() += 1;
+            add(IROp::Imm, r2, Some(offset.clone()));
+            add(IROp::Add, r1, r2);
+            kill(r2);
+            r1
+        }
         NodeType::Lvar(Scope::Local(offset)) => {
             let r = Some(*NREG.lock().unwrap());
             *NREG.lock().unwrap() += 1;
@@ -240,6 +249,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
             return r1;
         }
         NodeType::Lvar(_) |
+        NodeType::Dot(_, _, _) |
         NodeType::Gvar(_, _, _) => {
             let op = load_insn(Box::new(&node.ty));
             let r = gen_lval(Box::new(node));

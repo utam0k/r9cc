@@ -96,7 +96,7 @@ fn maybe_decay(base: Node, decay: bool) -> Node {
 fn check_lval(node: &Node) {
     let op = &node.op;
     if matches!(op, NodeType::Lvar(_)) || matches!(op, NodeType::Gvar(_, _, _)) ||
-        matches!(op, NodeType::Deref(_))
+        matches!(op, NodeType::Deref(_)) || matches!(op, NodeType::Dot(_, _, _))
     {
         return;
     }
@@ -177,6 +177,29 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
                 Box::new(walk(*body, env, true)),
                 Box::new(walk(*cond, env, true)),
             );
+        }
+        Dot(mut expr, member, _) => {
+            expr = Box::new(walk(*expr, env, true));
+            let mut offset = 0;
+            let mut ty = Box::new(Type::default());
+            if let Ctype::Struct(ref members) = expr.ty.ty {
+                for m in members {
+                    if let NodeType::Vardef(ref name, _, Scope::Local(offset2)) = m.op {
+                        if name == &member {
+                            continue;
+                        }
+                        ty = m.ty.clone();
+                        offset = offset2;
+                        break;
+                    } else {
+                        panic!()
+                    }
+                }
+            } else {
+                panic!("struct expected before '.'");
+            }
+            node.op = NodeType::Dot(expr, member, offset);
+            node.ty = ty;
         }
         BinOp(token_type, mut lhs, mut rhs) => {
             match token_type {

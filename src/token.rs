@@ -13,6 +13,7 @@ pub enum TokenType {
     Minus, // -
     Mul, // *
     And, // &
+    Dot, // .
     Div, // /
     If, // "if"
     Else, // "else"
@@ -59,6 +60,7 @@ impl TokenType {
             '<' => Some(LeftAngleBracket),
             '>' => Some(RightAngleBracket),
             ',' => Some(Colon),
+            '.' => Some(Dot),
             _ => None,
         }
     }

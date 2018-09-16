@@ -68,6 +68,7 @@ pub enum NodeType {
     DoWhile(Box<Node>, Box<Node>), // do { body } while(cond)
     Addr(Box<Node>), // address-of operator("&"), expr
     Deref(Box<Node>), // pointer dereference ("*"), expr
+    Dot(Box<Node>, String, usize), // Struct member accessm, (expr, member, offset)
     Logand(Box<Node>, Box<Node>), // left-hand, right-hand
     Logor(Box<Node>, Box<Node>), // left-hand, right-hand
     Return(Box<Node>), // "return", stmt
@@ -88,7 +89,7 @@ pub enum Ctype {
     Char,
     Ptr(Box<Type>), // ptr of
     Ary(Box<Type>, usize), // ary of, len
-    Struct(Vec<Type>), // members
+    Struct(Vec<Node>), // members
 }
 
 impl Default for Ctype {
@@ -143,25 +144,31 @@ impl Type {
         ty
     }
 
-    pub fn new_struct(members: Vec<Node>) -> Self {
-        // let mut struct_members = vec![];
+    pub fn new_struct(mut members: Vec<Node>) -> Self {
+        let (off, align) = Self::set_offset(&mut members);
+        let mut ty: Type = Type::new(Ctype::Struct(members), align);
+        ty.size = roundup(off, align);
+        ty
+    }
+
+    fn set_offset(members: &mut Vec<Node>) -> (usize, usize) {
         let mut off = 0;
-        let mut ty: Type = Type::new(Ctype::Struct(vec![]), 0);
+        let mut align = 0;
         for node in members {
-            if let NodeType::Vardef(_, _, _) = node.op {
-                let t = node.ty;
+            if let NodeType::Vardef(_, _, Scope::Local(offset)) = &mut node.op {
+                let t = &node.ty;
                 off = roundup(off, t.align);
+                *offset = off;
                 off += t.size;
 
-                if ty.align < t.align {
-                    ty.align = t.align;
+                if align < t.align {
+                    align = t.align;
                 }
             } else {
                 panic!();
             }
         }
-        ty.size = roundup(off, ty.align);
-        ty
+        return (off, align);
     }
 }
 
@@ -193,6 +200,16 @@ macro_rules! new_expr(
         Node::new($i(Box::new($expr)))
     )
 );
+
+fn ident(tokens: &Vec<Token>, pos: &mut usize) -> String {
+    let t = &tokens[*pos];
+    if let TokenType::Ident(ref name) = t.ty {
+        *pos += 1;
+        name.clone()
+    } else {
+        panic!("variable name expected, but got {}", t.input);
+    }
+}
 
 fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let t = &tokens[*pos];
@@ -241,6 +258,11 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
 fn postfix(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = primary(tokens, pos);
+
+    if consume(TokenType::Dot, tokens, pos) {
+        return Node::new(NodeType::Dot(Box::new(lhs), ident(tokens, pos), 0));
+    }
+
     while consume(TokenType::LeftBracket, tokens, pos) {
         lhs = new_expr!(
             NodeType::Deref,
@@ -408,41 +430,31 @@ fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     // Read the first half of type name (e.g. `int *`).
     let mut ty = Box::new(ctype(tokens, pos));
 
-    let t = &tokens[*pos];
     // Read an identifier.
-    if let TokenType::Ident(ref name) = t.ty {
-        *pos += 1;
-        let init: Option<Box<Node>>;
+    let name = ident(tokens, pos);
+    let init: Option<Box<Node>>;
 
-        // Read the second half of type name (e.g. `[3][5]`).
-        ty = read_array(ty, tokens, pos);
+    // Read the second half of type name (e.g. `[3][5]`).
+    ty = read_array(ty, tokens, pos);
 
-        // Read an initializer.
-        if consume(TokenType::Equal, tokens, pos) {
-            init = Some(Box::new(assign(tokens, pos)));
-        } else {
-            init = None
-        }
-        expect(TokenType::Semicolon, tokens, pos);
-        let mut node = Node::new(NodeType::Vardef(name.clone(), init, Scope::Local(0)));
-        node.ty = ty;
-        node
+    // Read an initializer.
+    if consume(TokenType::Equal, tokens, pos) {
+        init = Some(Box::new(assign(tokens, pos)));
     } else {
-        panic!("variable name expected, but got {}", t.input);
+        init = None
     }
+    expect(TokenType::Semicolon, tokens, pos);
+    let mut node = Node::new(NodeType::Vardef(name.clone(), init, Scope::Local(0)));
+    node.ty = ty;
+    node
 }
 
 fn param(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let ty = Box::new(ctype(tokens, pos));
-    let t = &tokens[*pos];
-    if let TokenType::Ident(ref name) = t.ty {
-        *pos += 1;
-        let mut node = Node::new(NodeType::Vardef(name.clone(), None, Scope::Local(0)));
-        node.ty = ty;
-        node
-    } else {
-        panic!("parameter name expected, but got {}", t.input);
-    }
+    let name = ident(tokens, pos);
+    let mut node = Node::new(NodeType::Vardef(name.clone(), None, Scope::Local(0)));
+    node.ty = ty;
+    node
 }
 
 fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {

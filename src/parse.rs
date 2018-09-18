@@ -52,7 +52,6 @@ pub enum NodeType {
     Num(i32), // Number literal
     Str(String, usize), // String literal, (data, len)
     Ident(String), // Identifier
-    Struct(Vec<Node>), // Struct
     Vardef(String, Option<Box<Node>>, Scope), // Variable definition, name = init
     Lvar(Scope), // Variable reference
     Gvar(String, String, usize), // Variable reference, (name, data, len)
@@ -62,7 +61,7 @@ pub enum NodeType {
     DoWhile(Box<Node>, Box<Node>), // do { body } while(cond)
     Addr(Box<Node>), // address-of operator("&"), expr
     Deref(Box<Node>), // pointer dereference ("*"), expr
-    Dot(Box<Node>, String, usize), // Struct member accessm, (expr, member, offset)
+    Dot(Box<Node>, String, usize), // Struct member accessm, (expr, name, offset)
     Logand(Box<Node>, Box<Node>), // left-hand, right-hand
     Logor(Box<Node>, Box<Node>), // left-hand, right-hand
     Return(Box<Node>), // "return", stmt
@@ -255,6 +254,14 @@ fn postfix(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
     if consume(TokenType::Dot, tokens, pos) {
         return Node::new(NodeType::Dot(Box::new(lhs), ident(tokens, pos), 0));
+    }
+
+    if consume(TokenType::Arrow, tokens, pos) {
+        return Node::new(NodeType::Dot(
+            Box::new(new_expr!(NodeType::Deref, lhs)),
+            ident(tokens, pos),
+            0,
+        ));
     }
 
     while consume(TokenType::LeftBracket, tokens, pos) {

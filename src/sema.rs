@@ -178,14 +178,14 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
                 Box::new(walk(*cond, env, true)),
             );
         }
-        Dot(mut expr, member, _) => {
+        Dot(mut expr, name, _) => {
             expr = Box::new(walk(*expr, env, true));
             let mut offset = 0;
             let mut ty = Box::new(Type::default());
             if let Ctype::Struct(ref members) = expr.ty.ty {
                 for m in members {
-                    if let NodeType::Vardef(ref name, _, Scope::Local(offset2)) = m.op {
-                        if name == &member {
+                    if let NodeType::Vardef(ref m_name, _, Scope::Local(offset2)) = m.op {
+                        if m_name == &name {
                             continue;
                         }
                         ty = m.ty.clone();
@@ -198,7 +198,7 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
             } else {
                 panic!("struct expected before '.'");
             }
-            node.op = NodeType::Dot(expr, member, offset);
+            node.op = NodeType::Dot(expr, name, offset);
             node.ty = ty;
         }
         BinOp(token_type, mut lhs, mut rhs) => {

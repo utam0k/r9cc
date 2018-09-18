@@ -63,7 +63,8 @@ pub enum TokenType {
     Str(String, usize), // String literal. (str, len)
     CharLiteral(String), // Char literal.
     Ident(String), // Identifier
-    Extern, // "int"
+    Arrow, // ->
+    Extern, // "extern"
     Int, // "int"
     Char, // "char"
     Struct, // "struct"
@@ -150,10 +151,11 @@ lazy_static! {
         Symbol::new("sizeof" , TokenType::Sizeof),
         Symbol::new("struct" , TokenType::Struct),
         Symbol::new("while" , TokenType::While),
-        Symbol::new("&&", TokenType::Logand),
-        Symbol::new("||", TokenType::Logor),
-        Symbol::new("==", TokenType::EQ),
         Symbol::new("!=", TokenType::NE),
+        Symbol::new("&&", TokenType::Logand),
+        Symbol::new("->", TokenType::Arrow),
+        Symbol::new("==", TokenType::EQ),
+        Symbol::new("||", TokenType::Logor),
     ].to_vec();
 }
 

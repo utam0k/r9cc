@@ -7,6 +7,7 @@ use r9cc::parse::parse;
 use r9cc::regalloc::alloc_regs;
 use r9cc::token::tokenize;
 use r9cc::sema::sema;
+use r9cc::FILE_NAME;
 
 use std::env;
 use std::fs::File;
@@ -18,25 +19,24 @@ fn main() {
     let mut dump_tokens = false;
     let mut dump_ir1 = false;
     let mut dump_ir2 = false;
-    let filename: String;
 
     if args.len() == 3 && args[1] == "-dump-ir1" {
         dump_ir1 = true;
-        filename = args[2].clone();
+        *FILE_NAME.lock().unwrap() = args[2].clone();
     } else if args.len() == 3 && args[1] == "-dump-ir2" {
         dump_ir2 = true;
-        filename = args[2].clone();
+        *FILE_NAME.lock().unwrap() = args[2].clone();
     } else if args.len() == 3 && args[1] == "-dump-tokens" {
         dump_tokens = true;
-        filename = args[2].clone();
+        *FILE_NAME.lock().unwrap() = args[2].clone();
     } else {
         if args.len() != 2 {
             eprint!("Usage: 9cc [-dump-ir1] [-dump-ir2] <file>\n");
             return;
         }
-        filename = args[1].clone();
+        *FILE_NAME.lock().unwrap() = args[1].clone();
     }
-    let mut file = File::open(filename).unwrap();
+    let mut file = File::open(FILE_NAME.lock().unwrap().clone()).unwrap();
     file.read_to_string(&mut input).unwrap();
 
     // Tokenize and parse.

@@ -1,17 +1,11 @@
-use token::{Token, TokenType};
+use token::{Token, TokenType, bad_token};
 use sema::Scope;
 use util::roundup;
 
 fn expect(ty: TokenType, tokens: &Vec<Token>, pos: &mut usize) {
     let t = &tokens[*pos];
     if t.ty != ty {
-        panic!(
-            "{:?} ({:?}) expected, but got {:?} ({:?})",
-            ty,
-            ty,
-            t.ty,
-            t.ty
-        );
+        bad_token(t, &format!("{:?} expected", ty));
     }
     *pos += 1;
 }
@@ -207,7 +201,7 @@ fn ident(tokens: &Vec<Token>, pos: &mut usize) -> String {
         *pos += 1;
         name.clone()
     } else {
-        panic!("variable name expected, but got {}", t.input);
+        bad_token(t, "variable name expected");
     }
 }
 
@@ -252,7 +246,7 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             expect(TokenType::RightParen, tokens, pos);
             node
         }
-        _ => panic!("number expected, but got {}", t.input),
+        _ => bad_token(t, "number expected"),
     }
 }
 
@@ -405,7 +399,7 @@ fn ctype(tokens: &Vec<Token>, pos: &mut usize) -> Type {
         }
         ty
     } else {
-        panic!("typename expected, but got {}", t.input);
+        bad_token(t, "typename expected");
     }
 }
 
@@ -558,7 +552,7 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     if let TokenType::Ident(ref name2) = t.ty {
         name = name2.clone();
     } else {
-        panic!("function or variable name expected, but got {}", t.input);
+        bad_token(t, "function or variable name expected");
     }
     *pos += 1;
 

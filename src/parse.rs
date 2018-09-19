@@ -2,6 +2,36 @@ use token::{Token, TokenType, bad_token};
 use sema::Scope;
 use util::roundup;
 
+use std::sync::Mutex;
+use std::collections::HashMap;
+
+// This is a recursive-descendent parser which constructs abstract
+// syntax tree from input tokens.
+//
+// This parser knows only about BNF of the C grammer and doesn't care
+// about its semantics. Therefore, some invalid expressions, such as
+// `1+2=3`, are accepted by this parser, but that's intentional.
+// Semantic errors are detected in a later pass.
+
+#[derive(Debug, Clone)]
+struct Env {
+    tags: HashMap<String, Vec<Node>>,
+    next: Option<Box<Env>>,
+}
+
+impl Env {
+    pub fn new(next: Option<Box<Env>>) -> Self {
+        Env {
+            next: next,
+            tags: HashMap::new(),
+        }
+    }
+}
+
+lazy_static!{
+    static ref ENV: Mutex<Env> = Mutex::new(Env::new(None));
+}
+
 fn expect(ty: TokenType, tokens: &Vec<Token>, pos: &mut usize) {
     let t = &tokens[*pos];
     if t.ty != ty {
@@ -36,11 +66,38 @@ fn read_type(t: &Token, tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
         }
         TokenType::Struct => {
             *pos += 1;
-            expect(TokenType::LeftBrace, tokens, pos);
-            let mut members = vec![];
-            while !consume(TokenType::RightBrace, tokens, pos) {
-                members.push(decl(tokens, pos))
+
+            let mut tag_may: Option<String> = None;
+            let t = &tokens[*pos];
+            if let TokenType::Ident(ref name) = t.ty {
+                *pos += 1;
+                tag_may = Some(name.clone())
             }
+
+            let mut members = vec![];
+            if consume(TokenType::LeftBrace, tokens, pos) {
+                while !consume(TokenType::RightBrace, tokens, pos) {
+                    members.push(decl(tokens, pos))
+                }
+            }
+
+            if let Some(tag) = tag_may {
+                if members.is_empty() {
+                    if let Some(members2) = ENV.lock().unwrap().tags.get(&tag) {
+                        members = members2.to_vec();
+                        if members.is_empty() {
+                            panic!("incomplete type: {}", tag);
+                        }
+                    }
+                } else {
+                    ENV.lock().unwrap().tags.insert(tag, members.clone());
+                }
+            } else {
+                if members.is_empty() {
+                    panic!("bad struct definition");
+                }
+            }
+
             Some(Type::new_struct(members))
         }
         _ => None,
@@ -545,9 +602,13 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 fn compound_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut stmts = vec![];
 
+    let new_env = Env::new(Some(Box::new(ENV.lock().unwrap().clone())));
+    *ENV.lock().unwrap() = new_env;
     while !consume(TokenType::RightBrace, tokens, pos) {
         stmts.push(stmt(tokens, pos));
     }
+    let next = ENV.lock().unwrap().next.clone();
+    *ENV.lock().unwrap() = *next.unwrap();
     Node::new(NodeType::CompStmt(stmts))
 }
 

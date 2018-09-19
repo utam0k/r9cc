@@ -309,26 +309,31 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 fn postfix(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = primary(tokens, pos);
 
-    if consume(TokenType::Dot, tokens, pos) {
-        return Node::new(NodeType::Dot(Box::new(lhs), ident(tokens, pos), 0));
-    }
+    loop {
+        if consume(TokenType::Dot, tokens, pos) {
+            lhs = Node::new(NodeType::Dot(Box::new(lhs), ident(tokens, pos), 0));
+            continue;
+        }
 
-    if consume(TokenType::Arrow, tokens, pos) {
-        return Node::new(NodeType::Dot(
-            Box::new(new_expr!(NodeType::Deref, lhs)),
-            ident(tokens, pos),
-            0,
-        ));
-    }
+        if consume(TokenType::Arrow, tokens, pos) {
+            lhs = Node::new(NodeType::Dot(
+                Box::new(new_expr!(NodeType::Deref, lhs)),
+                ident(tokens, pos),
+                0,
+            ));
+            continue;
+        }
 
-    while consume(TokenType::LeftBracket, tokens, pos) {
-        lhs = new_expr!(
-            NodeType::Deref,
-            Node::new_binop(TokenType::Plus, lhs, assign(tokens, pos))
-        );
-        expect(TokenType::RightBracket, tokens, pos);
+        if consume(TokenType::LeftBracket, tokens, pos) {
+            lhs = new_expr!(
+                NodeType::Deref,
+                Node::new_binop(TokenType::Plus, lhs, assign(tokens, pos))
+            );
+            expect(TokenType::RightBracket, tokens, pos);
+            continue;
+        }
+        return lhs;
     }
-    lhs
 }
 
 fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Node {

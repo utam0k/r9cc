@@ -180,32 +180,34 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
         }
         Dot(mut expr, name, _) => {
             expr = Box::new(walk(*expr, env, true));
-            let mut offset_may: Option<usize> = None;
-            let mut ty = Box::new(Type::default());
+            let offset;
             if let Ctype::Struct(ref members) = expr.ty.ty {
-                for m in members {
-                    if let NodeType::Vardef(ref m_name, _, Scope::Local(offset2)) = m.op {
+                let m_may = members.into_iter().find(|m| {
+                    if let NodeType::Vardef(ref m_name, _, _) = m.op {
                         if m_name != &name {
-                            continue;
+                            return false;
                         }
-                        ty = m.ty.clone();
-                        offset_may = Some(offset2);
-                        break;
-                    } else {
-                        panic!()
+                        return true;
                     }
+                    false
+                });
+
+                if let Some(m) = m_may {
+                    if let NodeType::Vardef(_, _, Scope::Local(offset2)) = m.op {
+                        node.ty = m.ty.clone();
+                        offset = offset2;
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    panic!("member missing: {}", name);
                 }
             } else {
                 panic!("struct expected before '.'");
             }
 
-            if let Some(offset) = offset_may {
-                node.op = NodeType::Dot(expr, name, offset);
-                node.ty = ty;
-                return maybe_decay(node, decay);
-            } else {
-                panic!("member missing: {}", name);
-            }
+            node.op = NodeType::Dot(expr, name, offset);
+            return maybe_decay(node, decay);
         }
         BinOp(token_type, mut lhs, mut rhs) => {
             match token_type {
@@ -269,27 +271,21 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
             expr = Box::new(walk(*expr, env, false));
             node = Node::int_ty(expr.ty.align as i32)
         }
-        Call(name, args) => {
-            let mut new_args = vec![];
-            for arg in args {
-                new_args.push(walk(arg, env, true));
-            }
-            node.op = Call(name, new_args);
+        Call(name, mut args) => {
+            args = args.into_iter().map(|arg| walk(arg, env, true)).collect();
+            node.op = Call(name, args);
         }
-        Func(name, args, body, stacksize) => {
-            let mut new_args = vec![];
-            for arg in args {
-                new_args.push(walk(arg, env, true));
-            }
-            node.op = Func(name, new_args, Box::new(walk(*body, env, true)), stacksize);
+        Func(name, mut args, body, stacksize) => {
+            args = args.into_iter().map(|arg| walk(arg, env, true)).collect();
+            node.op = Func(name, args, Box::new(walk(*body, env, true)), stacksize);
         }
-        CompStmt(stmts) => {
-            let mut new_stmts = vec![];
+        CompStmt(mut stmts) => {
             let mut new_env = Env::new(Some(Box::new(env.clone())));
-            for stmt in stmts {
-                new_stmts.push(walk(stmt, &mut new_env, true));
-            }
-            node.op = CompStmt(new_stmts);
+            stmts = stmts
+                .into_iter()
+                .map(|stmt| walk(stmt, &mut new_env, true))
+                .collect();
+            node.op = CompStmt(stmts);
         }
         ExprStmt(expr) => node.op = ExprStmt(Box::new(walk(*expr, env, true))),
         StmtExpr(body) => {

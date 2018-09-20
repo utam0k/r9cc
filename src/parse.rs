@@ -1,9 +1,13 @@
 use token::{Token, TokenType, bad_token};
-use sema::Scope;
+use {Ctype, Type, Scope};
 use util::roundup;
 
 use std::sync::Mutex;
 use std::collections::HashMap;
+
+lazy_static!{
+    static ref ENV: Mutex<Env> = Mutex::new(Env::new(None));
+}
 
 // This is a recursive-descendent parser which constructs abstract
 // syntax tree from input tokens.
@@ -12,6 +16,121 @@ use std::collections::HashMap;
 // about its semantics. Therefore, some invalid expressions, such as
 // `1+2=3`, are accepted by this parser, but that's intentional.
 // Semantic errors are detected in a later pass.
+
+#[derive(Debug, Clone)]
+pub enum NodeType {
+    Num(i32), // Number literal
+    Str(String, usize), // String literal, (data, len)
+    Ident(String), // Identifier
+    Vardef(String, Option<Box<Node>>, Scope), // Variable definition, name = init
+    Lvar(Scope), // Variable reference
+    Gvar(String, String, usize), // Variable reference, (name, data, len)
+    BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
+    If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
+    For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
+    DoWhile(Box<Node>, Box<Node>), // do { body } while(cond)
+    Addr(Box<Node>), // address-of operator("&"), expr
+    Deref(Box<Node>), // pointer dereference ("*"), expr
+    Dot(Box<Node>, String, usize), // Struct member accessm, (expr, name, offset)
+    Logand(Box<Node>, Box<Node>), // left-hand, right-hand
+    Logor(Box<Node>, Box<Node>), // left-hand, right-hand
+    Return(Box<Node>), // "return", stmt
+    Sizeof(Box<Node>), // "sizeof", expr
+    Alignof(Box<Node>), // "_Alignof", expr
+    Call(String, Vec<Node>), // Function call(name, args)
+    // Function definition(name, args, body, stacksize)
+    Func(String, Vec<Node>, Box<Node>, usize),
+    CompStmt(Vec<Node>), // Compound statement
+    ExprStmt(Box<Node>), // Expression statement
+    StmtExpr(Box<Node>), // Statement expression (GNU extn.)
+    Null,
+}
+
+#[derive(Debug, Clone)]
+pub struct Node {
+    pub op: NodeType, // Node type
+    pub ty: Box<Type>, // C type
+}
+
+impl Node {
+    pub fn new(op: NodeType) -> Self {
+        Self {
+            op,
+            ty: Box::new(Type::default()),
+        }
+    }
+
+    pub fn int_ty(val: i32) -> Self {
+        Node::new(NodeType::Num(val))
+    }
+
+    pub fn new_binop(ty: TokenType, lhs: Node, rhs: Node) -> Self {
+        Node::new(NodeType::BinOp(ty, Box::new(lhs), Box::new(rhs)))
+    }
+}
+
+macro_rules! new_expr(
+    ($i:path, $expr:expr) => (
+        Node::new($i(Box::new($expr)))
+    )
+);
+
+impl Type {
+    pub fn new(ty: Ctype, size: usize) -> Self {
+        Type {
+            ty,
+            size,
+            align: size,
+        }
+    }
+
+    pub fn char_ty() -> Self {
+        Type::new(Ctype::Char, 1)
+    }
+
+    pub fn int_ty() -> Self {
+        Type::new(Ctype::Int, 4)
+    }
+
+    pub fn ptr_to(base: Box<Type>) -> Self {
+        Type::new(Ctype::Ptr(base), 8)
+    }
+
+    pub fn ary_of(base: Box<Type>, len: usize) -> Self {
+        let align = base.align;
+        let size = base.size * len;
+        let mut ty = Type::new(Ctype::Ary(base, len), size);
+        ty.align = align;
+        ty
+    }
+
+    pub fn new_struct(mut members: Vec<Node>) -> Self {
+        let (off, align) = Self::set_offset(&mut members);
+        let mut ty: Type = Type::new(Ctype::Struct(members), align);
+        ty.size = roundup(off, align);
+        ty
+    }
+
+    fn set_offset(members: &mut Vec<Node>) -> (usize, usize) {
+        let mut off = 0;
+        let mut align = 0;
+        for node in members {
+            if let NodeType::Vardef(_, _, Scope::Local(offset)) = &mut node.op {
+                let t = &node.ty;
+                off = roundup(off, t.align);
+                *offset = off;
+                off += t.size;
+
+                if align < t.align {
+                    align = t.align;
+                }
+            } else {
+                panic!();
+            }
+        }
+        return (off, align);
+    }
+}
 
 #[derive(Debug, Clone)]
 struct Env {
@@ -28,10 +147,6 @@ impl Env {
             typedefs: HashMap::new(),
         }
     }
-}
-
-lazy_static!{
-    static ref ENV: Mutex<Env> = Mutex::new(Env::new(None));
 }
 
 fn expect(ty: TokenType, tokens: &Vec<Token>, pos: &mut usize) {
@@ -116,153 +231,6 @@ fn read_type(t: &Token, tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
         _ => None,
     }
 }
-
-#[derive(Debug, Clone)]
-pub enum NodeType {
-    Num(i32), // Number literal
-    Str(String, usize), // String literal, (data, len)
-    Ident(String), // Identifier
-    Vardef(String, Option<Box<Node>>, Scope), // Variable definition, name = init
-    Lvar(Scope), // Variable reference
-    Gvar(String, String, usize), // Variable reference, (name, data, len)
-    BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
-    If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
-    For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
-    DoWhile(Box<Node>, Box<Node>), // do { body } while(cond)
-    Addr(Box<Node>), // address-of operator("&"), expr
-    Deref(Box<Node>), // pointer dereference ("*"), expr
-    Dot(Box<Node>, String, usize), // Struct member accessm, (expr, name, offset)
-    Logand(Box<Node>, Box<Node>), // left-hand, right-hand
-    Logor(Box<Node>, Box<Node>), // left-hand, right-hand
-    Return(Box<Node>), // "return", stmt
-    Sizeof(Box<Node>), // "sizeof", expr
-    Alignof(Box<Node>), // "_Alignof", expr
-    Call(String, Vec<Node>), // Function call(name, args)
-    // Function definition(name, args, body, stacksize)
-    Func(String, Vec<Node>, Box<Node>, usize),
-    CompStmt(Vec<Node>), // Compound statement
-    ExprStmt(Box<Node>), // Expression statement
-    StmtExpr(Box<Node>), // Statement expression (GNU extn.)
-    Null,
-}
-
-#[derive(Debug, Clone)]
-pub enum Ctype {
-    Int,
-    Char,
-    Ptr(Box<Type>), // ptr of
-    Ary(Box<Type>, usize), // ary of, len
-    Struct(Vec<Node>), // members
-}
-
-impl Default for Ctype {
-    fn default() -> Ctype {
-        Ctype::Int
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Type {
-    pub ty: Ctype,
-    pub size: usize,
-    pub align: usize,
-}
-
-impl Default for Type {
-    fn default() -> Type {
-        Type {
-            ty: Ctype::default(),
-            size: 4,
-            align: 4,
-        }
-    }
-}
-
-impl Type {
-    pub fn new(ty: Ctype, size: usize) -> Self {
-        Type {
-            ty,
-            size,
-            align: size,
-        }
-    }
-
-    pub fn char_ty() -> Self {
-        Type::new(Ctype::Char, 1)
-    }
-
-    pub fn int_ty() -> Self {
-        Type::new(Ctype::Int, 4)
-    }
-
-    pub fn ptr_to(base: Box<Type>) -> Self {
-        Type::new(Ctype::Ptr(base), 8)
-    }
-
-    pub fn ary_of(base: Box<Type>, len: usize) -> Self {
-        let align = base.align;
-        let size = base.size * len;
-        let mut ty = Type::new(Ctype::Ary(base, len), size);
-        ty.align = align;
-        ty
-    }
-
-    pub fn new_struct(mut members: Vec<Node>) -> Self {
-        let (off, align) = Self::set_offset(&mut members);
-        let mut ty: Type = Type::new(Ctype::Struct(members), align);
-        ty.size = roundup(off, align);
-        ty
-    }
-
-    fn set_offset(members: &mut Vec<Node>) -> (usize, usize) {
-        let mut off = 0;
-        let mut align = 0;
-        for node in members {
-            if let NodeType::Vardef(_, _, Scope::Local(offset)) = &mut node.op {
-                let t = &node.ty;
-                off = roundup(off, t.align);
-                *offset = off;
-                off += t.size;
-
-                if align < t.align {
-                    align = t.align;
-                }
-            } else {
-                panic!();
-            }
-        }
-        return (off, align);
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Node {
-    pub op: NodeType, // Node type
-    pub ty: Box<Type>, // C type
-}
-
-impl Node {
-    pub fn new(op: NodeType) -> Self {
-        Self {
-            op,
-            ty: Box::new(Type::default()),
-        }
-    }
-
-    pub fn int_ty(val: i32) -> Self {
-        Node::new(NodeType::Num(val))
-    }
-
-    pub fn new_binop(ty: TokenType, lhs: Node, rhs: Node) -> Self {
-        Node::new(NodeType::BinOp(ty, Box::new(lhs), Box::new(rhs)))
-    }
-}
-
-macro_rules! new_expr(
-    ($i:path, $expr:expr) => (
-        Node::new($i(Box::new($expr)))
-    )
-);
 
 fn ident(tokens: &Vec<Token>, pos: &mut usize) -> String {
     let t = &tokens[*pos];

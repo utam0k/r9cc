@@ -1,9 +1,6 @@
 use gen_ir::{IROp, Function, IR};
-use sema::{Scope, Var};
 use util::roundup;
-use REGS;
-use REGS8;
-use REGS32;
+use {REGS, REGS8, REGS32, Scope, Var};
 
 use std::sync::Mutex;
 

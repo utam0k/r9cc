@@ -1,9 +1,9 @@
 // Compile AST to intermediate code that has infinite number of registers.
 // Base pointer is always assigned to r0.
 
-use parse::{Node, NodeType, Ctype, Type};
+use parse::{Node, NodeType};
 use token::TokenType;
-use sema::Scope;
+use {Ctype, Type, Scope};
 
 use std::sync::Mutex;
 

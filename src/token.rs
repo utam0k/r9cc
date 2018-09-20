@@ -2,60 +2,6 @@ use std::sync::Mutex;
 
 use FILE_NAME;
 
-// Error reporting
-lazy_static!{
-    static ref INPUT_FILE: Mutex<Vec<char>> = Mutex::new(vec![]);
-}
-
-fn print_line(t: &Token) {
-    let mut pos = 0;
-    let mut start = 0;
-    let mut line = 0;
-    let mut col = 0;
-    let input_file = INPUT_FILE.lock().unwrap();
-    for p in input_file.iter() {
-        if p == &'\n' {
-            start = pos + 1;
-            line += 1;
-            col = 0;
-            pos += 1;
-            continue;
-        }
-
-        if pos != t.start {
-            col += 1;
-            pos += 1;
-            continue;
-        }
-
-        print!(
-            "error at {}:{}:{}\n\n",
-            FILE_NAME.lock().unwrap(),
-            line + 1,
-            col
-        );
-        break;
-    }
-
-    for p in input_file[start..].iter() {
-        if p == &'\n' {
-            break;
-        }
-        print!("{}", p);
-    }
-    print!("\n");
-    for _ in 0..col - 1 {
-        print!(" ");
-    }
-    print!("^\n\n");
-}
-
-pub fn bad_token(t: &Token, msg: &str) -> ! {
-    print_line(t);
-    println!("{}", msg);
-    panic!();
-}
-
 // Tokenizer
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
@@ -172,6 +118,60 @@ impl Token {
     pub fn new(ty: TokenType, start: usize) -> Self {
         Token { ty, start }
     }
+}
+
+// Error reporting
+lazy_static!{
+    static ref INPUT_FILE: Mutex<Vec<char>> = Mutex::new(vec![]);
+}
+
+fn print_line(t: &Token) {
+    let mut pos = 0;
+    let mut start = 0;
+    let mut line = 0;
+    let mut col = 0;
+    let input_file = INPUT_FILE.lock().unwrap();
+    for p in input_file.iter() {
+        if p == &'\n' {
+            start = pos + 1;
+            line += 1;
+            col = 0;
+            pos += 1;
+            continue;
+        }
+
+        if pos != t.start {
+            col += 1;
+            pos += 1;
+            continue;
+        }
+
+        print!(
+            "error at {}:{}:{}\n\n",
+            FILE_NAME.lock().unwrap(),
+            line + 1,
+            col
+        );
+        break;
+    }
+
+    for p in input_file[start..].iter() {
+        if p == &'\n' {
+            break;
+        }
+        print!("{}", p);
+    }
+    print!("\n");
+    for _ in 0..col - 1 {
+        print!(" ");
+    }
+    print!("^\n\n");
+}
+
+pub fn bad_token(t: &Token, msg: &str) -> ! {
+    print_line(t);
+    println!("{}", msg);
+    panic!();
 }
 
 fn escaped(c: &char) -> Option<char> {

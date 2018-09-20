@@ -1,6 +1,7 @@
-use parse::{Node, NodeType, Type, Ctype};
+use parse::{Node, NodeType};
 use token::TokenType;
 use util::roundup;
+use {Ctype, Type, Scope, Var};
 
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -14,6 +15,10 @@ macro_rules! matches(
         }
     )
 );
+
+fn swap(p: &mut Box<Node>, q: &mut Box<Node>) {
+    mem::swap(p, q);
+}
 
 lazy_static!{
     static ref STRLABEL: Mutex<usize> = Mutex::new(0);
@@ -48,34 +53,6 @@ impl Env {
             }
         }
         return None;
-    }
-}
-
-fn swap(p: &mut Box<Node>, q: &mut Box<Node>) {
-    mem::swap(p, q);
-}
-
-#[derive(Debug, Clone)]
-pub enum Scope {
-    Local(usize), // offset
-    Global(String, usize, bool), // data, len, is_extern
-}
-
-#[derive(Debug, Clone)]
-pub struct Var {
-    ty: Box<Type>,
-    pub name: String,
-    pub scope: Scope,
-}
-
-impl Var {
-    fn new(ty: Box<Type>, name: String, scope: Scope) -> Self {
-        Var { ty, name, scope }
-    }
-
-    fn new_global(ty: Box<Type>, name: String, data: String, len: usize, is_extern: bool) -> Self {
-        let var = Var::new(ty, name.clone(), Scope::Global(data, len, is_extern));
-        return var;
     }
 }
 

@@ -16,14 +16,16 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 struct Env {
     tags: HashMap<String, Vec<Node>>,
+    typedefs: HashMap<String, Type>,
     next: Option<Box<Env>>,
 }
 
 impl Env {
     pub fn new(next: Option<Box<Env>>) -> Self {
         Env {
-            next: next,
+            next,
             tags: HashMap::new(),
+            typedefs: HashMap::new(),
         }
     }
 }
@@ -51,11 +53,22 @@ fn consume(ty: TokenType, tokens: &Vec<Token>, pos: &mut usize) -> bool {
 
 fn is_typename(t: &Token) -> bool {
     use self::TokenType::*;
+    if let TokenType::Ident(ref name) = t.ty {
+        return ENV.lock().unwrap().typedefs.get(name).is_some();
+    }
     t.ty == Int || t.ty == Char || t.ty == Struct
 }
 
 fn read_type(t: &Token, tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
     match t.ty {
+        TokenType::Ident(ref name) => {
+            if let Some(ty) = ENV.lock().unwrap().typedefs.get(name) {
+                *pos += 1;
+                return Some(ty.clone());
+            } else {
+                return None;
+            }
+        }
         TokenType::Int => {
             *pos += 1;
             Some(Type::int_ty())
@@ -529,6 +542,16 @@ fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
 fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     match tokens[*pos].ty {
+        TokenType::Typedef => {
+            *pos += 1;
+            let node = decl(tokens, pos);
+            if let NodeType::Vardef(name, _, _) = node.op {
+                ENV.lock().unwrap().typedefs.insert(name, *node.ty);
+                return Node::new(NodeType::Null);
+            } else {
+                unreachable!();
+            }
+        }
         TokenType::Int | TokenType::Char | TokenType::Struct => return decl(tokens, pos),
         TokenType::If => {
             let mut els = None;
@@ -596,6 +619,9 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             Node::new(NodeType::Null)
         }
         _ => {
+            if is_typename(&tokens[*pos]) {
+                return decl(tokens, pos);
+            }
             let expr = assign(&tokens, pos);
             let node = Node::new(NodeType::ExprStmt(Box::new(expr)));
             expect(TokenType::Semicolon, tokens, pos);

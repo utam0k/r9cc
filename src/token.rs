@@ -65,6 +65,7 @@ pub enum TokenType {
     Ident(String), // Identifier
     Arrow, // ->
     Extern, // "extern"
+    Typedef, // "typedef"
     Int, // "int"
     Char, // "char"
     Struct, // "struct"
@@ -150,6 +151,7 @@ lazy_static! {
         Symbol::new("return" , TokenType::Return),
         Symbol::new("sizeof" , TokenType::Sizeof),
         Symbol::new("struct" , TokenType::Struct),
+        Symbol::new("typedef" , TokenType::Typedef),
         Symbol::new("while" , TokenType::While),
         Symbol::new("!=", TokenType::NE),
         Symbol::new("&&", TokenType::Logand),

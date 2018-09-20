@@ -84,6 +84,10 @@ impl Type {
         }
     }
 
+    pub fn void_ty() -> Self {
+        Type::new(Ctype::Void, 0)
+    }
+
     pub fn char_ty() -> Self {
         Type::new(Ctype::Char, 1)
     }
@@ -171,30 +175,24 @@ fn is_typename(t: &Token) -> bool {
     if let TokenType::Ident(ref name) = t.ty {
         return ENV.lock().unwrap().typedefs.get(name).is_some();
     }
-    t.ty == Int || t.ty == Char || t.ty == Struct
+    t.ty == Int || t.ty == Char || t.ty == Void || t.ty == Struct
 }
 
 fn read_type(t: &Token, tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
+    *pos += 1;
     match t.ty {
         TokenType::Ident(ref name) => {
             if let Some(ty) = ENV.lock().unwrap().typedefs.get(name) {
-                *pos += 1;
                 return Some(ty.clone());
             } else {
+                *pos -= 1;
                 return None;
             }
         }
-        TokenType::Int => {
-            *pos += 1;
-            Some(Type::int_ty())
-        }
-        TokenType::Char => {
-            *pos += 1;
-            Some(Type::char_ty())
-        }
+        TokenType::Int => Some(Type::int_ty()),
+        TokenType::Char => Some(Type::char_ty()),
+        TokenType::Void => Some(Type::void_ty()),
         TokenType::Struct => {
-            *pos += 1;
-
             let mut tag_may: Option<String> = None;
             let t = &tokens[*pos];
             if let TokenType::Ident(ref name) = t.ty {
@@ -228,7 +226,10 @@ fn read_type(t: &Token, tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
 
             Some(Type::new_struct(members))
         }
-        _ => None,
+        _ => {
+            *pos -= 1;
+            None
+        }
     }
 }
 
@@ -480,6 +481,9 @@ fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
     // Read the second half of type name (e.g. `[3][5]`).
     ty = read_array(ty, tokens, pos);
+    if let Ctype::Void = ty.ty {
+        panic!("void variable: {}", name);
+    }
 
     // Read an initializer.
     if consume(TokenType::Equal, tokens, pos) {

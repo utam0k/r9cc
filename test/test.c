@@ -1,4 +1,5 @@
-// extern int *stderr;
+extern void *stderr;
+
 #define EXPECT(expected, expr)                         \
   do {                                                 \
     int e1 = (expected);                               \

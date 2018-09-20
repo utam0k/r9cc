@@ -14,6 +14,7 @@ pub enum TokenType {
     Typedef, // "typedef"
     Int, // "int"
     Char, // "char"
+    Void, // "void"
     Struct, // "struct"
     Plus, // +
     Minus, // -
@@ -88,6 +89,7 @@ lazy_static! {
     static ref SYMBOLS: Vec<Symbol> = [
         Symbol::new("_Alignof" , TokenType::Alignof),
         Symbol::new("char" , TokenType::Char),
+        Symbol::new("void" , TokenType::Void),
         Symbol::new("do" , TokenType::Do),
         Symbol::new("else" , TokenType::Else),
         Symbol::new("extern" , TokenType::Extern),

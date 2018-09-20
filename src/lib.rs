@@ -24,6 +24,7 @@ lazy_static! {
 pub enum Ctype {
     Int,
     Char,
+    Void,
     Ptr(Box<Type>), // ptr of
     Ary(Box<Type>, usize), // ary of, len
     Struct(Vec<parse::Node>), // members

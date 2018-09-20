@@ -235,6 +235,7 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
             expr = Box::new(walk(*expr, env, true));
             match expr.ty.ty {
                 Ctype::Ptr(ref ptr_to) => node.ty = ptr_to.clone(),
+                Ctype::Void => panic!("cannot dereference void opinter"),
                 _ => panic!("operand must be a pointer"),
             }
             node.op = Deref(expr);

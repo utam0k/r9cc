@@ -4,6 +4,9 @@ use {REGS, REGS8, REGS32, Scope, Var};
 
 use std::sync::Mutex;
 
+// Quoted from 9cc
+// > This pass generates x86-64 assembly from IR.
+
 const ARGREG8: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
 const ARGREG32: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
 const ARGREG64: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];

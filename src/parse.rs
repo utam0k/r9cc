@@ -5,17 +5,18 @@ use util::roundup;
 use std::sync::Mutex;
 use std::collections::HashMap;
 
+// Quoted from 9cc
+// > This is a recursive-descendent parser which constructs abstract
+// > syntax tree from input tokens.
+//
+// > This parser knows only about BNF of the C grammer and doesn't care
+// > about its semantics. Therefore, some invalid expressions, such as
+// > `1+2=3`, are accepted by this parser, but that's intentional.
+// > Semantic errors are detected in a later pass.
+//
 lazy_static!{
     static ref ENV: Mutex<Env> = Mutex::new(Env::new(None));
 }
-
-// This is a recursive-descendent parser which constructs abstract
-// syntax tree from input tokens.
-//
-// This parser knows only about BNF of the C grammer and doesn't care
-// about its semantics. Therefore, some invalid expressions, such as
-// `1+2=3`, are accepted by this parser, but that's intentional.
-// Semantic errors are detected in a later pass.
 
 #[derive(Debug, Clone)]
 pub enum NodeType {

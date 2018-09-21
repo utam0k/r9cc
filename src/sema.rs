@@ -132,14 +132,21 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
             }
             node.op = Vardef(name, init, Scope::Local(offset));
         }
-        If(cond, then, els_may) => {
-            let new_cond = Box::new(walk(*cond, env, true));
-            let new_then = Box::new(walk(*then, env, true));
+        If(mut cond, mut then, els_may) => {
+            cond = Box::new(walk(*cond, env, true));
+            then = Box::new(walk(*then, env, true));
             let mut new_els = None;
             if let Some(mut els) = els_may {
                 new_els = Some(Box::new(walk(*els, env, true)));
             }
-            node.op = If(new_cond, new_then, new_els);
+            node.op = If(cond, then, new_els);
+        }
+        Ternary(mut cond, mut then, mut els) => {
+            cond = Box::new(walk(*cond, env, true));
+            then = Box::new(walk(*then, env, true));
+            els = Box::new(walk(*els, env, true));
+            node.ty = then.ty.clone();
+            node.op = Ternary(cond, then, els);
         }
         For(init, cond, inc, body) => {
             node.op = For(

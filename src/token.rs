@@ -22,7 +22,10 @@ pub enum TokenType {
     Div, // /
     And, // &
     Dot, // .
+    Comma, // ,
     Exclamation, // !
+    Question, // ?
+    Colon, // :
     If, // "if"
     Else, // "else"
     For, // "for"
@@ -45,7 +48,6 @@ pub enum TokenType {
     Return, // "return"
     Sizeof, // "sizeof"
     Alignof, // "_Alignof"
-    Colon, // ,
 }
 
 impl TokenType {
@@ -67,9 +69,11 @@ impl TokenType {
             '}' => Some(RightBrace),
             '<' => Some(LeftAngleBracket),
             '>' => Some(RightAngleBracket),
-            ',' => Some(Colon),
+            ',' => Some(Comma),
             '.' => Some(Dot),
             '!' => Some(Exclamation),
+            '?' => Some(Question),
+            ':' => Some(Colon),
             _ => None,
         }
     }

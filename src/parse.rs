@@ -27,6 +27,7 @@ pub enum NodeType {
     Gvar(String, String, usize), // Variable reference, (name, data, len)
     BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
     If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
+    Ternary(Box<Node>, Box<Node>, Box<Node>), // cond ? then : els
     For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
     DoWhile(Box<Node>, Box<Node>), // do { body } while(cond)
     Addr(Box<Node>), // address-of operator("&"), expr
@@ -269,7 +270,7 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             }
 
             args.push(assign(tokens, pos));
-            while consume(TokenType::Colon, tokens, pos) {
+            while consume(TokenType::Comma, tokens, pos) {
                 args.push(assign(tokens, pos));
             }
             expect(TokenType::RightParen, tokens, pos);
@@ -438,10 +439,25 @@ fn logor(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     }
 }
 
+fn conditional(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let cond = logor(tokens, pos);
+    if !consume(TokenType::Question, tokens, pos) {
+        return cond;
+    }
+    let then = assign(tokens, pos);
+    expect(TokenType::Colon, tokens, pos);
+    let els = assign(tokens, pos);
+    Node::new(NodeType::Ternary(
+        Box::new(cond),
+        Box::new(then),
+        Box::new(els),
+    ))
+}
+
 fn assign(tokens: &Vec<Token>, pos: &mut usize) -> Node {
-    let lhs = logor(tokens, pos);
+    let lhs = conditional(tokens, pos);
     if consume(TokenType::Equal, tokens, pos) {
-        return Node::new_binop(TokenType::Equal, lhs, logor(tokens, pos));
+        return Node::new_binop(TokenType::Equal, lhs, conditional(tokens, pos));
     }
     return lhs;
 }
@@ -636,7 +652,7 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         let mut args = vec![];
         if !consume(TokenType::RightParen, tokens, pos) {
             args.push(param(tokens, pos));
-            while consume(TokenType::Colon, tokens, pos) {
+            while consume(TokenType::Comma, tokens, pos) {
                 args.push(param(tokens, pos));
             }
             expect(TokenType::RightParen, tokens, pos);

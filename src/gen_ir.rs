@@ -327,6 +327,28 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                 _ => gen_binop(IROp::from(op), lhs, rhs),
             }
         }
+        NodeType::Ternary(cond, then, els) => {
+            //      cond then els  then
+            // return 1 ? 3 : 5; => 3
+            let x = Some(*NLABEL.lock().unwrap());
+            *NLABEL.lock().unwrap() += 1;
+            let y = Some(*NLABEL.lock().unwrap());
+            *NLABEL.lock().unwrap() += 1;
+            let r = gen_expr(cond);
+
+            add(IROp::Unless, r, x);
+            let r2 = gen_expr(then);
+            add(IROp::Mov, r, r2);
+            kill(r2);
+            add(IROp::Jmp, y, None);
+
+            label(x);
+            let r3 = gen_expr(els);
+            add(IROp::Mov, r, r3);
+            kill(r3);
+            label(y);
+            return r;
+        }
         NodeType::Exclamation(expr) => {
             let lhs = gen_expr(expr);
             let rhs = Some(*NREG.lock().unwrap());

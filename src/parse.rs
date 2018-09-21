@@ -34,6 +34,7 @@ pub enum NodeType {
     Dot(Box<Node>, String, usize), // Struct member accessm, (expr, name, offset)
     Logand(Box<Node>, Box<Node>), // left-hand, right-hand
     Logor(Box<Node>, Box<Node>), // left-hand, right-hand
+    Exclamation(Box<Node>), // !, expr
     Return(Box<Node>), // "return", stmt
     Sizeof(Box<Node>), // "sizeof", expr
     Alignof(Box<Node>), // "_Alignof", expr
@@ -324,6 +325,9 @@ fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     }
     if consume(TokenType::And, tokens, pos) {
         return new_expr!(NodeType::Addr, mul(tokens, pos));
+    }
+    if consume(TokenType::Exclamation, tokens, pos) {
+        return new_expr!(NodeType::Exclamation, unary(tokens, pos));
     }
     if consume(TokenType::Sizeof, tokens, pos) {
         return new_expr!(NodeType::Sizeof, unary(tokens, pos));

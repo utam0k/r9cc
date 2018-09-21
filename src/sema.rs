@@ -225,6 +225,10 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
             node.op = Logor(lhs.clone(), Box::new(walk(*rhs, env, true)));
             node.ty = lhs.ty;
         }
+        Exclamation(mut expr) => {
+            expr = Box::new(walk(*expr, env, true));
+            node.op = Exclamation(expr);
+        }
         Addr(mut expr) => {
             expr = Box::new(walk(*expr, env, true));
             check_lval(&*expr);

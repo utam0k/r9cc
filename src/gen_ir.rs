@@ -327,6 +327,15 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                 _ => gen_binop(IROp::from(op), lhs, rhs),
             }
         }
+        NodeType::Exclamation(expr) => {
+            let lhs = gen_expr(expr);
+            let rhs = Some(*NREG.lock().unwrap());
+            *NREG.lock().unwrap() += 1;
+            add(IROp::Imm, rhs, Some(0));
+            add(IROp::EQ, lhs, rhs);
+            kill(rhs);
+            return lhs;
+        }
         e => unreachable!("{:?}", e),
     }
 }

@@ -19,9 +19,10 @@ pub enum TokenType {
     Plus, // +
     Minus, // -
     Mul, // *
+    Div, // /
     And, // &
     Dot, // .
-    Div, // /
+    Exclamation, // !
     If, // "if"
     Else, // "else"
     For, // "for"
@@ -68,6 +69,7 @@ impl TokenType {
             '>' => Some(RightAngleBracket),
             ',' => Some(Colon),
             '.' => Some(Dot),
+            '!' => Some(Exclamation),
             _ => None,
         }
     }

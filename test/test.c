@@ -1,16 +1,16 @@
 extern void *stderr;
 
-#define EXPECT(expected, expr)                         \
-  do {                                                 \
-    int e1 = (expected);                               \
-    int e2 = (expr);                                   \
-    if (e1 == e2) {                                    \
-      printf("%s => %d\n", #expr, e2);                 \
-    } else {                                           \
-      printf("line %d: %s: %d expected, but got %d\n", \
-              __LINE__, #expr, e1, e2);                \
-      exit(1);                                         \
-    }                                                  \
+#define EXPECT(expected, expr)                                  \
+  do {                                                          \
+    int e1 = (expected);                                        \
+    int e2 = (expr);                                            \
+    if (e1 == e2) {                                             \
+      fprintf(stderr, "%s => %d\n", #expr, e2);                 \
+    } else {                                                    \
+      fprintf(stderr, "line %d: %s: %d expected, but got %d\n", \
+              __LINE__, #expr, e1, e2);                         \
+      exit(1);                                                  \
+    }                                                           \
   } while (0)
 
 int one() { return 1; }

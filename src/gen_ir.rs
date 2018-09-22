@@ -334,6 +334,10 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                 }
                 TokenType::EQ => gen_binop(IROp::EQ, lhs, rhs),
                 TokenType::NE => gen_binop(IROp::NE, lhs, rhs),
+                TokenType::Comma => {
+                    kill(gen_expr(lhs));
+                    gen_expr(rhs)
+                }
                 _ => gen_binop(IROp::from(op), lhs, rhs),
             }
         }

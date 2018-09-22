@@ -411,9 +411,19 @@ fn equality(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     }
 }
 
+fn bit_or(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let mut lhs = equality(tokens, pos);
+    loop {
+        if tokens[*pos].ty != TokenType::VerticalBar {
+            return lhs;
+        }
+        *pos += 1;
+        lhs = Node::new_binop(TokenType::VerticalBar, lhs, equality(tokens, pos));
+    }
+}
 
 fn logand(tokens: &Vec<Token>, pos: &mut usize) -> Node {
-    let mut lhs = equality(tokens, pos);
+    let mut lhs = bit_or(tokens, pos);
     loop {
         if tokens[*pos].ty != TokenType::Logand {
             return lhs;
@@ -421,7 +431,7 @@ fn logand(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         *pos += 1;
         lhs = Node::new(NodeType::Logand(
             Box::new(lhs),
-            Box::new(equality(tokens, pos)),
+            Box::new(bit_or(tokens, pos)),
         ));
     }
 }

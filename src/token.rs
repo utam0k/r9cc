@@ -26,6 +26,7 @@ pub enum TokenType {
     Exclamation, // !
     Question, // ?
     VerticalBar, // |
+    Hat, // ^
     Colon, // :
     If, // "if"
     Else, // "else"
@@ -75,6 +76,7 @@ impl TokenType {
             '!' => Some(Exclamation),
             '?' => Some(Question),
             '|' => Some(VerticalBar),
+            '^' => Some(Hat),
             ':' => Some(Colon),
             _ => None,
         }

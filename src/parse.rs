@@ -412,14 +412,25 @@ fn equality(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     }
 }
 
-fn bit_or(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+fn bit_xor(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = equality(tokens, pos);
+    loop {
+        if tokens[*pos].ty != TokenType::Hat {
+            return lhs;
+        }
+        *pos += 1;
+        lhs = Node::new_binop(TokenType::Hat, lhs, equality(tokens, pos));
+    }
+}
+
+fn bit_or(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let mut lhs = bit_xor(tokens, pos);
     loop {
         if tokens[*pos].ty != TokenType::VerticalBar {
             return lhs;
         }
         *pos += 1;
-        lhs = Node::new_binop(TokenType::VerticalBar, lhs, equality(tokens, pos));
+        lhs = Node::new_binop(TokenType::VerticalBar, lhs, bit_xor(tokens, pos));
     }
 }
 

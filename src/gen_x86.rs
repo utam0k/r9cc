@@ -98,6 +98,7 @@ fn gen(f: Function) {
             NE => emit_cmp(ir, "setne"),
             LT => emit_cmp(ir, "setl"),
             OR => print!("  or {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            XOR => print!("  xor {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             Jmp => print!("  jmp .L{}\n", lhs),
             If => {
                 print!("  cmp {}, 0\n", REGS[lhs]);

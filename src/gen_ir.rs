@@ -77,6 +77,7 @@ pub enum IROp {
     EQ,
     NE,
     LT,
+    AND,
     OR,
     XOR,
     Jmp,
@@ -336,6 +337,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                 }
                 TokenType::EQ => gen_binop(IROp::EQ, lhs, rhs),
                 TokenType::NE => gen_binop(IROp::NE, lhs, rhs),
+                TokenType::And => gen_binop(IROp::AND, lhs, rhs),
                 TokenType::VerticalBar => gen_binop(IROp::OR, lhs, rhs),
                 TokenType::Hat => gen_binop(IROp::XOR, lhs, rhs),
                 TokenType::Comma => {

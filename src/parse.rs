@@ -44,6 +44,7 @@ pub enum NodeType {
     // Function definition(name, args, body, stacksize)
     Func(String, Vec<Node>, Box<Node>, usize),
     CompStmt(Vec<Node>), // Compound statement
+    VecStmt(Vec<Node>), // For the purpose of assign a value when initializing an array.
     ExprStmt(Box<Node>), // Expression statement
     StmtExpr(Box<Node>), // Statement expression (GNU extn.)
     Null,
@@ -526,6 +527,18 @@ fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
     // Read an initializer.
     if consume(TokenType::Equal, tokens, pos) {
+        // Assign a value when initializing an array.
+        if consume(TokenType::LeftBrace, tokens, pos) {
+            let mut stmts = vec![];
+            let mut ary_decl = Node::new(NodeType::Vardef(name.clone(), None, Scope::Local(0)));
+            ary_decl.ty = ty;
+            stmts.push(ary_decl);
+            let init_ary = array_init_rval(tokens, pos, Node::new(NodeType::Ident(name)));
+            expect(TokenType::Semicolon, tokens, pos);
+            stmts.push(init_ary);
+            return Node::new(NodeType::VecStmt(stmts));
+        }
+
         init = Some(Box::new(assign(tokens, pos)));
     } else {
         init = None
@@ -534,6 +547,27 @@ fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut node = Node::new(NodeType::Vardef(name.clone(), init, Scope::Local(0)));
     node.ty = ty;
     node
+}
+
+fn array_init_rval(tokens: &Vec<Token>, pos: &mut usize, ident: Node) -> Node {
+    let mut init = vec![];
+    let mut i = 0;
+    loop {
+        let val = primary(tokens, pos);
+        let node = new_expr!(
+            NodeType::Deref,
+            Node::new_binop(TokenType::Plus, ident.clone(), Node::new(NodeType::Num(i)))
+        );
+        init.push(Node::new(NodeType::ExprStmt(
+            Box::new(Node::new_binop(TokenType::Equal, node, val)),
+        )));
+        if !consume(TokenType::Comma, tokens, pos) {
+            break;
+        }
+        i += 1;
+    }
+    expect(TokenType::RightBrace, tokens, pos);
+    return Node::new(NodeType::VecStmt(init));
 }
 
 fn param(tokens: &Vec<Token>, pos: &mut usize) -> Node {

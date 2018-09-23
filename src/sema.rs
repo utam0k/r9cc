@@ -294,6 +294,13 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
                 .collect();
             node.op = CompStmt(stmts);
         }
+        VecStmt(mut stmts) => {
+            stmts = stmts
+                .into_iter()
+                .map(|stmt| walk(stmt, env, true))
+                .collect();
+            node.op = VecStmt(stmts);
+        }
         ExprStmt(expr) => node.op = ExprStmt(Box::new(walk(*expr, env, true))),
         StmtExpr(body) => {
             node.op = StmtExpr(Box::new(walk(*body, env, true)));

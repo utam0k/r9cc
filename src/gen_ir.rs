@@ -461,6 +461,7 @@ fn gen_stmt(node: Node) {
             let r = gen_expr(expr);
             kill(r);
         }
+        NodeType::VecStmt(stmts) |
         NodeType::CompStmt(stmts) => {
             for n in stmts {
                 gen_stmt(n);

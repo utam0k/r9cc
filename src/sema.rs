@@ -235,7 +235,8 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
                 }
                 _ => {
                     lhs = Box::new(walk(*lhs, env, true));
-                    node.op = BinOp(token_type, lhs.clone(), Box::new(walk(*rhs, env, true)));
+                    rhs = Box::new(walk(*rhs, env, true));
+                    node.op = BinOp(token_type, lhs.clone(), rhs);
                     node.ty = lhs.ty;
                 }
             }

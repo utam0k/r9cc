@@ -374,6 +374,10 @@ fn rel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             lhs = Node::new_binop(TokenType::LeftAngleBracket, lhs, add(tokens, pos));
         } else if consume(TokenType::RightAngleBracket, tokens, pos) {
             lhs = Node::new_binop(TokenType::LeftAngleBracket, add(tokens, pos), lhs);
+        } else if consume(TokenType::LE, tokens, pos) {
+            lhs = Node::new_binop(TokenType::LE, lhs, add(tokens, pos))
+        } else if consume(TokenType::GE, tokens, pos) {
+            lhs = Node::new_binop(TokenType::LE, add(tokens, pos), lhs);
         } else {
             return lhs;
         }

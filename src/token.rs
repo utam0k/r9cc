@@ -35,6 +35,8 @@ pub enum TokenType {
     While, // "while"
     EQ, // ==
     NE, // !=
+    LE, // <=
+    GE, // >=
     Semicolon, // ;
     LeftParen, // (
     RightParen, // )
@@ -114,7 +116,9 @@ lazy_static! {
         Symbol::new("!=", TokenType::NE),
         Symbol::new("&&", TokenType::Logand),
         Symbol::new("->", TokenType::Arrow),
+        Symbol::new("<=", TokenType::LE),
         Symbol::new("==", TokenType::EQ),
+        Symbol::new(">=", TokenType::GE),
         Symbol::new("||", TokenType::Logor),
     ].to_vec();
 }

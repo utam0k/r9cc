@@ -28,6 +28,7 @@ impl<'a> From<&'a IROp> for IRInfo {
             LabelAddr(_) => IRInfo::new("LABEL_ADDR", IRType::LabelAddr),
             EQ => IRInfo::new("EQ", IRType::RegReg),
             NE => IRInfo::new("NE", IRType::RegReg),
+            LE => IRInfo::new("LE", IRType::RegReg),
             LT => IRInfo::new("LT", IRType::RegReg),
             AND => IRInfo::new("AND", IRType::RegReg),
             OR => IRInfo::new("OR", IRType::RegReg),

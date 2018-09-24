@@ -11,9 +11,14 @@ test: r9cc
 clean:
 	rm -f *~ tmp*
 
-fib: r9cc
-	@./target/debug/r9cc "$$(cat examples/fib.c)" > tmp-fib.s
+fib:
+	@./target/debug/r9cc examples/fib.c > tmp-fib.s
 	@gcc -static -o tmp-fib tmp-fib.s 
 	@./tmp-fib
+
+prime:
+	@./target/debug/r9cc examples/prime.c > tmp-prime.s
+	@gcc -static -o tmp-prime tmp-prime.s
+	@./tmp-prime
 
 .PHONY: test clean

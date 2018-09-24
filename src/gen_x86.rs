@@ -101,6 +101,14 @@ fn gen(f: Function) {
             AND => print!("  and {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             OR => print!("  or {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
             XOR => print!("  xor {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            SHL => {
+                print!("  mov cl, {}\n", REGS8[ir.rhs.unwrap()]);
+                print!("  shl {}, cl\n", REGS[lhs]);
+            }
+            SHR => {
+                print!("  mov cl, {}\n", REGS8[ir.rhs.unwrap()]);
+                print!("  shr {}, cl\n", REGS[lhs]);
+            }
             Jmp => print!("  jmp .L{}\n", lhs),
             If => {
                 print!("  cmp {}, 0\n", REGS[lhs]);

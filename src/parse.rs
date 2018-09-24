@@ -367,17 +367,30 @@ fn add(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     }
 }
 
-fn rel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+fn shift(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = add(tokens, pos);
     loop {
+        if consume(TokenType::SHL, tokens, pos) {
+            lhs = Node::new_binop(TokenType::SHL, lhs, add(tokens, pos));
+        } else if consume(TokenType::SHR, tokens, pos) {
+            lhs = Node::new_binop(TokenType::SHR, lhs, add(tokens, pos));
+        } else {
+            return lhs;
+        }
+    }
+}
+
+fn relational(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let mut lhs = shift(tokens, pos);
+    loop {
         if consume(TokenType::LeftAngleBracket, tokens, pos) {
-            lhs = Node::new_binop(TokenType::LeftAngleBracket, lhs, add(tokens, pos));
+            lhs = Node::new_binop(TokenType::LeftAngleBracket, lhs, shift(tokens, pos));
         } else if consume(TokenType::RightAngleBracket, tokens, pos) {
-            lhs = Node::new_binop(TokenType::LeftAngleBracket, add(tokens, pos), lhs);
+            lhs = Node::new_binop(TokenType::LeftAngleBracket, shift(tokens, pos), lhs);
         } else if consume(TokenType::LE, tokens, pos) {
-            lhs = Node::new_binop(TokenType::LE, lhs, add(tokens, pos))
+            lhs = Node::new_binop(TokenType::LE, lhs, shift(tokens, pos))
         } else if consume(TokenType::GE, tokens, pos) {
-            lhs = Node::new_binop(TokenType::LE, add(tokens, pos), lhs);
+            lhs = Node::new_binop(TokenType::LE, shift(tokens, pos), lhs);
         } else {
             return lhs;
         }
@@ -385,12 +398,12 @@ fn rel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 }
 
 fn equality(tokens: &Vec<Token>, pos: &mut usize) -> Node {
-    let mut lhs = rel(tokens, pos);
+    let mut lhs = relational(tokens, pos);
     loop {
         if consume(TokenType::EQ, tokens, pos) {
-            lhs = Node::new_binop(TokenType::EQ, lhs, rel(tokens, pos));
+            lhs = Node::new_binop(TokenType::EQ, lhs, relational(tokens, pos));
         } else if consume(TokenType::NE, tokens, pos) {
-            lhs = Node::new_binop(TokenType::NE, lhs, rel(tokens, pos));
+            lhs = Node::new_binop(TokenType::NE, lhs, relational(tokens, pos));
         } else {
             return lhs;
         }

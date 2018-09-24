@@ -49,6 +49,8 @@ pub enum TokenType {
     Equal, // =
     Logor, // ||
     Logand, // &&
+    SHL, // <<
+    SHR, // >>
     Return, // "return"
     Sizeof, // "sizeof"
     Alignof, // "_Alignof"
@@ -116,9 +118,11 @@ lazy_static! {
         Symbol::new("!=", TokenType::NE),
         Symbol::new("&&", TokenType::Logand),
         Symbol::new("->", TokenType::Arrow),
+        Symbol::new("<<", TokenType::SHL),
         Symbol::new("<=", TokenType::LE),
         Symbol::new("==", TokenType::EQ),
         Symbol::new(">=", TokenType::GE),
+        Symbol::new(">>", TokenType::SHR),
         Symbol::new("||", TokenType::Logor),
     ].to_vec();
 }

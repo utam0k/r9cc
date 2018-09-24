@@ -83,6 +83,7 @@ pub enum IROp {
     XOR,
     SHL,
     SHR,
+    Mod,
     Jmp,
     If,
     Unless,
@@ -346,6 +347,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                 TokenType::Hat => gen_binop(IROp::XOR, lhs, rhs),
                 TokenType::SHL => gen_binop(IROp::SHL, lhs, rhs),
                 TokenType::SHR => gen_binop(IROp::SHR, lhs, rhs),
+                TokenType::Mod => gen_binop(IROp::Mod, lhs, rhs),
                 TokenType::Comma => {
                     kill(gen_expr(lhs));
                     gen_expr(rhs)

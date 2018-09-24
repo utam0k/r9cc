@@ -109,6 +109,16 @@ fn gen(f: Function) {
                 print!("  mov cl, {}\n", REGS8[ir.rhs.unwrap()]);
                 print!("  shr {}, cl\n", REGS[lhs]);
             }
+            Mod => {
+                /* Same mean(?).
+                 * print!("  mov rdx, 0\n");
+                 * print!("  mov rax, {}\n", REGS[lhs]);
+                 */
+                print!("  mov rax, {}\n", REGS[lhs]);
+                print!("  cqo\n"); // rax -> rdx:rax
+                print!("  div {}\n", REGS[ir.rhs.unwrap()]);
+                print!("  mov {}, rdx\n", REGS[lhs]);
+            }
             Jmp => print!("  jmp .L{}\n", lhs),
             If => {
                 print!("  cmp {}, 0\n", REGS[lhs]);

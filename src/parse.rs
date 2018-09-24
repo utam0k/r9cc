@@ -347,6 +347,8 @@ fn mul(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             lhs = Node::new_binop(TokenType::Mul, lhs, unary(&tokens, pos));
         } else if consume(TokenType::Div, tokens, pos) {
             lhs = Node::new_binop(TokenType::Div, lhs, unary(&tokens, pos));
+        } else if consume(TokenType::Mod, tokens, pos) {
+            lhs = Node::new_binop(TokenType::Mod, lhs, unary(&tokens, pos));
         } else {
             return lhs;
         }

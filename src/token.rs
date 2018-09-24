@@ -51,6 +51,7 @@ pub enum TokenType {
     Logand, // &&
     SHL, // <<
     SHR, // >>
+    Mod, // %
     Return, // "return"
     Sizeof, // "sizeof"
     Alignof, // "_Alignof"
@@ -81,6 +82,7 @@ impl TokenType {
             '?' => Some(Question),
             '|' => Some(VerticalBar),
             '^' => Some(Hat),
+            '%' => Some(Mod),
             ':' => Some(Colon),
             _ => None,
         }

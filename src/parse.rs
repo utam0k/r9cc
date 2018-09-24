@@ -345,16 +345,13 @@ fn mul(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = unary(&tokens, pos);
 
     loop {
-        if tokens.len() == *pos {
+        if consume(TokenType::Mul, tokens, pos) {
+            lhs = Node::new_binop(TokenType::Mul, lhs, unary(&tokens, pos));
+        } else if consume(TokenType::Div, tokens, pos) {
+            lhs = Node::new_binop(TokenType::Div, lhs, unary(&tokens, pos));
+        } else {
             return lhs;
         }
-
-        let t = &tokens[*pos];
-        if t.ty != TokenType::Mul && t.ty != TokenType::Div {
-            return lhs;
-        }
-        *pos += 1;
-        lhs = Node::new_binop(t.ty.clone(), lhs, unary(&tokens, pos));
     }
 }
 
@@ -362,115 +359,86 @@ fn add(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = mul(&tokens, pos);
 
     loop {
-        if tokens.len() == *pos {
+        if consume(TokenType::Plus, tokens, pos) {
+            lhs = Node::new_binop(TokenType::Plus, lhs, mul(&tokens, pos));
+        } else if consume(TokenType::Minus, tokens, pos) {
+            lhs = Node::new_binop(TokenType::Minus, lhs, mul(&tokens, pos));
+        } else {
             return lhs;
         }
-
-        let t = &tokens[*pos];
-        if t.ty != TokenType::Plus && t.ty != TokenType::Minus {
-            return lhs;
-        }
-        *pos += 1;
-        let rhs = mul(&tokens, pos);
-        lhs = Node::new_binop(t.ty.clone(), lhs, rhs);
     }
 }
 
 fn rel(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = add(tokens, pos);
     loop {
-        let t = &tokens[*pos];
-        if t.ty == TokenType::LeftAngleBracket {
-            *pos += 1;
+        if consume(TokenType::LeftAngleBracket, tokens, pos) {
             lhs = Node::new_binop(TokenType::LeftAngleBracket, lhs, add(tokens, pos));
-            continue;
-        }
-
-        if t.ty == TokenType::RightAngleBracket {
-            *pos += 1;
+        } else if consume(TokenType::RightAngleBracket, tokens, pos) {
             lhs = Node::new_binop(TokenType::LeftAngleBracket, add(tokens, pos), lhs);
-            continue;
+        } else {
+            return lhs;
         }
-
-        return lhs;
     }
 }
 
 fn equality(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = rel(tokens, pos);
     loop {
-        let t = &tokens[*pos];
-        if t.ty == TokenType::EQ {
-            *pos += 1;
+        if consume(TokenType::EQ, tokens, pos) {
             lhs = Node::new_binop(TokenType::EQ, lhs, rel(tokens, pos));
-        }
-        if t.ty == TokenType::NE {
-            *pos += 1;
+        } else if consume(TokenType::NE, tokens, pos) {
             lhs = Node::new_binop(TokenType::NE, lhs, rel(tokens, pos));
+        } else {
+            return lhs;
         }
-        return lhs;
     }
 }
 
 fn bit_and(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = equality(tokens, pos);
-    loop {
-        if tokens[*pos].ty != TokenType::And {
-            return lhs;
-        }
-        *pos += 1;
+    while consume(TokenType::And, tokens, pos) {
         lhs = Node::new_binop(TokenType::And, lhs, equality(tokens, pos));
     }
+    return lhs;
 }
 
 fn bit_xor(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = bit_and(tokens, pos);
-    loop {
-        if tokens[*pos].ty != TokenType::Hat {
-            return lhs;
-        }
-        *pos += 1;
+    while consume(TokenType::Hat, tokens, pos) {
         lhs = Node::new_binop(TokenType::Hat, lhs, bit_and(tokens, pos));
     }
+    return lhs;
 }
 
 fn bit_or(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = bit_xor(tokens, pos);
-    loop {
-        if tokens[*pos].ty != TokenType::VerticalBar {
-            return lhs;
-        }
-        *pos += 1;
+    while consume(TokenType::VerticalBar, tokens, pos) {
         lhs = Node::new_binop(TokenType::VerticalBar, lhs, bit_xor(tokens, pos));
     }
+    return lhs;
 }
 
 fn logand(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = bit_or(tokens, pos);
-    loop {
-        if tokens[*pos].ty != TokenType::Logand {
-            return lhs;
-        }
-        *pos += 1;
+    while consume(TokenType::Logand, tokens, pos) {
         lhs = Node::new(NodeType::Logand(
             Box::new(lhs),
             Box::new(bit_or(tokens, pos)),
         ));
     }
+    return lhs;
 }
 
 fn logor(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = logand(tokens, pos);
-    loop {
-        if tokens[*pos].ty != TokenType::Logor {
-            return lhs;
-        }
-        *pos += 1;
+    while consume(TokenType::Logor, tokens, pos) {
         lhs = Node::new(NodeType::Logor(
             Box::new(lhs),
             Box::new(logand(tokens, pos)),
         ));
     }
+    return lhs;
 }
 
 fn conditional(tokens: &Vec<Token>, pos: &mut usize) -> Node {

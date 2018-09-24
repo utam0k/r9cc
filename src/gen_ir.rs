@@ -227,40 +227,6 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
             add(IROp::Imm, r, Some(val as usize));
             return r;
         }
-        NodeType::Logand(lhs, rhs) => {
-            let x = Some(*NLABEL.lock().unwrap());
-            *NLABEL.lock().unwrap() += 1;
-
-            let r1 = gen_expr(lhs);
-            add(IROp::Unless, r1, x);
-            let r2 = gen_expr(rhs);
-            add(IROp::Mov, r1, r2);
-            kill(r2);
-            add(IROp::Unless, r1, x);
-            add(IROp::Imm, r1, Some(1));
-            label(x);
-            return r1;
-        }
-        NodeType::Logor(lhs, rhs) => {
-            let x = Some(*NLABEL.lock().unwrap());
-            *NLABEL.lock().unwrap() += 1;
-            let y = Some(*NLABEL.lock().unwrap());
-            *NLABEL.lock().unwrap() += 1;
-
-            let r1 = gen_expr(lhs);
-            add(IROp::Unless, r1, x);
-            add(IROp::Imm, r1, Some(1));
-            add(IROp::Jmp, y, None);
-            label(x);
-
-            let r2 = gen_expr(rhs);
-            add(IROp::Mov, r1, r2);
-            kill(r2);
-            add(IROp::Unless, r1, y);
-            add(IROp::Imm, r1, Some(1));
-            label(y);
-            return r1;
-        }
         NodeType::Lvar(_) |
         NodeType::Dot(_, _, _) |
         NodeType::Gvar(_, _, _) => {
@@ -334,6 +300,40 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                     } else {
                         gen_binop(insn, lhs, rhs)
                     }
+                }
+                TokenType::Logand => {
+                    let x = Some(*NLABEL.lock().unwrap());
+                    *NLABEL.lock().unwrap() += 1;
+
+                    let r1 = gen_expr(lhs);
+                    add(IROp::Unless, r1, x);
+                    let r2 = gen_expr(rhs);
+                    add(IROp::Mov, r1, r2);
+                    kill(r2);
+                    add(IROp::Unless, r1, x);
+                    add(IROp::Imm, r1, Some(1));
+                    label(x);
+                    return r1;
+                }
+                TokenType::Logor => {
+                    let x = Some(*NLABEL.lock().unwrap());
+                    *NLABEL.lock().unwrap() += 1;
+                    let y = Some(*NLABEL.lock().unwrap());
+                    *NLABEL.lock().unwrap() += 1;
+
+                    let r1 = gen_expr(lhs);
+                    add(IROp::Unless, r1, x);
+                    add(IROp::Imm, r1, Some(1));
+                    add(IROp::Jmp, y, None);
+                    label(x);
+
+                    let r2 = gen_expr(rhs);
+                    add(IROp::Mov, r1, r2);
+                    kill(r2);
+                    add(IROp::Unless, r1, y);
+                    add(IROp::Imm, r1, Some(1));
+                    label(y);
+                    return r1;
                 }
                 TokenType::EQ => gen_binop(IROp::EQ, lhs, rhs),
                 TokenType::NE => gen_binop(IROp::NE, lhs, rhs),

@@ -240,16 +240,6 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
                 }
             }
         }
-        Logand(mut lhs, rhs) => {
-            lhs = Box::new(walk(*lhs, env, true));
-            node.op = Logand(lhs.clone(), Box::new(walk(*rhs, env, true)));
-            node.ty = lhs.ty;
-        }
-        Logor(mut lhs, rhs) => {
-            lhs = Box::new(walk(*lhs, env, true));
-            node.op = Logor(lhs.clone(), Box::new(walk(*rhs, env, true)));
-            node.ty = lhs.ty;
-        }
         Exclamation(mut expr) => {
             expr = Box::new(walk(*expr, env, true));
             node.op = Exclamation(expr);

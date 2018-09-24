@@ -34,8 +34,6 @@ pub enum NodeType {
     Addr(Box<Node>), // address-of operator("&"), expr
     Deref(Box<Node>), // pointer dereference ("*"), expr
     Dot(Box<Node>, String, usize), // Struct member accessm, (expr, name, offset)
-    Logand(Box<Node>, Box<Node>), // left-hand, right-hand
-    Logor(Box<Node>, Box<Node>), // left-hand, right-hand
     Exclamation(Box<Node>), // !, expr
     Return(Box<Node>), // "return", stmt
     Sizeof(Box<Node>), // "sizeof", expr
@@ -422,10 +420,7 @@ fn bit_or(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 fn logand(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = bit_or(tokens, pos);
     while consume(TokenType::Logand, tokens, pos) {
-        lhs = Node::new(NodeType::Logand(
-            Box::new(lhs),
-            Box::new(bit_or(tokens, pos)),
-        ));
+        lhs = Node::new_binop(TokenType::Logand, lhs, logand(tokens, pos));
     }
     return lhs;
 }
@@ -433,10 +428,7 @@ fn logand(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 fn logor(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = logand(tokens, pos);
     while consume(TokenType::Logor, tokens, pos) {
-        lhs = Node::new(NodeType::Logor(
-            Box::new(lhs),
-            Box::new(logand(tokens, pos)),
-        ));
+        lhs = Node::new_binop(TokenType::Logor, lhs, logand(tokens, pos));
     }
     return lhs;
 }

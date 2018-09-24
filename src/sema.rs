@@ -245,6 +245,10 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
             expr = Box::new(walk(*expr, env, true));
             node.op = Exclamation(expr);
         }
+        Neg(mut expr) => {
+            expr = Box::new(walk(*expr, env, true));
+            node.op = Neg(expr);
+        }
         Addr(mut expr) => {
             expr = Box::new(walk(*expr, env, true));
             check_lval(&*expr);
@@ -261,6 +265,7 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
             node.op = Deref(expr);
         }
         Return(expr) => node.op = Return(Box::new(walk(*expr, env, true))),
+        ExprStmt(expr) => node.op = ExprStmt(Box::new(walk(*expr, env, true))),
         Sizeof(mut expr) => {
             expr = Box::new(walk(*expr, env, false));
             node = Node::int_ty(expr.ty.size as i32)
@@ -292,7 +297,6 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
                 .collect();
             node.op = VecStmt(stmts);
         }
-        ExprStmt(expr) => node.op = ExprStmt(Box::new(walk(*expr, env, true))),
         StmtExpr(body) => {
             node.op = StmtExpr(Box::new(walk(*body, env, true)));
             node.ty = Box::new(Type::int_ty())

@@ -35,6 +35,7 @@ pub enum NodeType {
     Deref(Box<Node>), // pointer dereference ("*"), expr
     Dot(Box<Node>, String, usize), // Struct member accessm, (expr, name, offset)
     Exclamation(Box<Node>), // !, expr
+    Neg(Box<Node>), // -
     Return(Box<Node>), // "return", stmt
     Sizeof(Box<Node>), // "sizeof", expr
     Alignof(Box<Node>), // "_Alignof", expr
@@ -321,11 +322,14 @@ fn postfix(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 }
 
 fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    if consume(TokenType::Minus, tokens, pos) {
+        return new_expr!(NodeType::Neg, unary(tokens, pos));
+    }
     if consume(TokenType::Mul, tokens, pos) {
-        return new_expr!(NodeType::Deref, mul(tokens, pos));
+        return new_expr!(NodeType::Deref, unary(tokens, pos));
     }
     if consume(TokenType::And, tokens, pos) {
-        return new_expr!(NodeType::Addr, mul(tokens, pos));
+        return new_expr!(NodeType::Addr, unary(tokens, pos));
     }
     if consume(TokenType::Exclamation, tokens, pos) {
         return new_expr!(NodeType::Exclamation, unary(tokens, pos));

@@ -36,6 +36,7 @@ impl<'a> From<&'a IROp> for IRInfo {
             SHL => IRInfo::new("SHL", IRType::RegReg),
             SHR => IRInfo::new("SHR", IRType::RegReg),
             Mod => IRInfo::new("MOD", IRType::RegReg),
+            Neg => IRInfo::new("NEG", IRType::Reg),
             Load8 => IRInfo::new("LOAD8", IRType::RegReg),
             Load32 => IRInfo::new("LOAD32", IRType::RegReg),
             Load64 => IRInfo::new("LOAD64", IRType::RegReg),

@@ -94,6 +94,7 @@ fn gen(f: Function) {
             }
             Label => print!(".L{}:\n", lhs),
             LabelAddr(name) => print!("  lea {}, {}\n", REGS[lhs], name),
+            Neg => print!("  neg {}\n", REGS[lhs]),
             EQ => emit_cmp(ir, "sete"),
             NE => emit_cmp(ir, "setne"),
             LT => emit_cmp(ir, "setl"),

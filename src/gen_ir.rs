@@ -84,6 +84,7 @@ pub enum IROp {
     SHL,
     SHR,
     Mod,
+    Neg,
     Jmp,
     If,
     Unless,
@@ -354,6 +355,11 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                 }
                 _ => gen_binop(IROp::from(op), lhs, rhs),
             }
+        }
+        NodeType::Neg(expr) => {
+            let r = gen_expr(expr);
+            add(IROp::Neg, r, None);
+            return r;
         }
         NodeType::Ternary(cond, then, els) => {
             //      cond then els  then

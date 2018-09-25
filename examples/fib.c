@@ -12,7 +12,7 @@ int fib(int n) {
 }
 
 int main() {
-  for (int i = 0; i < 100; i=i+1) 
+  for (int i = 0; i < 100; i++) 
     fibdp[i] = 0;
   int ans = fib(46);
   printf("%d\n", ans);

@@ -14,7 +14,7 @@ int main() {
   while (i < 10000) {
     if (prime(i))
       printf("prime!: %d\n", i);
-    i = i + 1;
+    i++;
   }
   return 0;
 }

@@ -184,6 +184,9 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
             expr = Box::new(walk(*expr, env, true));
             let offset;
             if let Ctype::Struct(ref members) = expr.ty.ty {
+                if members.is_empty() {
+                    panic!("incomplete type");
+                }
                 let m_may = members.into_iter().find(|m| {
                     if let NodeType::Vardef(ref m_name, _, _) = m.op {
                         if m_name != &name {

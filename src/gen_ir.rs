@@ -145,7 +145,7 @@ fn label(x: Option<usize>) {
     add(IROp::Label, x, None);
 }
 
-fn choose_insn(ty: Box<&Type>, op8: IROp, op32: IROp, op64: IROp) -> IROp {
+fn choose_insn(ty: &Type, op8: IROp, op32: IROp, op64: IROp) -> IROp {
     match ty.size {
         1 => op8,
         4 => op32,
@@ -154,19 +154,19 @@ fn choose_insn(ty: Box<&Type>, op8: IROp, op32: IROp, op64: IROp) -> IROp {
     }
 }
 
-fn load_insn(node: Box<&Type>) -> IROp {
+fn load_insn(ty: &Type) -> IROp {
     use self::IROp::*;
-    choose_insn(node, Load8, Load32, Load64)
+    choose_insn(ty, Load8, Load32, Load64)
 }
 
-fn store_insn(node: Box<&Type>) -> IROp {
+fn store_insn(ty: &Type) -> IROp {
     use self::IROp::*;
-    choose_insn(node, Store8, Store32, Store64)
+    choose_insn(ty, Store8, Store32, Store64)
 }
 
-fn store_arg_insn(node: Box<&Type>) -> IROp {
+fn store_arg_insn(ty: &Type) -> IROp {
     use self::IROp::*;
-    choose_insn(node, Store8Arg, Store32Arg, Store64Arg)
+    choose_insn(ty, Store8Arg, Store32Arg, Store64Arg)
 }
 
 // Quoted from 9cc
@@ -223,11 +223,11 @@ fn gen_binop(ty: IROp, lhs: Box<Node>, rhs: Box<Node>) -> Option<usize> {
     return r1;
 }
 
-fn gen_pre_inc(ty: Box<&Type>, expr: Box<Node>, num: i32) -> i32 {
+fn gen_pre_inc(ty: &Type, expr: Box<Node>, num: i32) -> i32 {
     let addr = gen_lval(expr);
     let val = *NREG.lock().unwrap();
     *NREG.lock().unwrap() += 1;
-    add(load_insn(ty.clone()), Some(val), addr);
+    add(load_insn(ty), Some(val), addr);
     let imm = Some(*NREG.lock().unwrap());
     *NREG.lock().unwrap() += 1;
     add(IROp::Imm, imm, Some(num as usize));
@@ -238,11 +238,11 @@ fn gen_pre_inc(ty: Box<&Type>, expr: Box<Node>, num: i32) -> i32 {
     return val as i32;
 }
 
-fn gen_post_inc(ty: Box<&Type>, expr: Box<Node>, num: i32) -> i32 {
+fn gen_post_inc(ty: &Type, expr: Box<Node>, num: i32) -> i32 {
     let addr = gen_lval(expr);
     let val = *NREG.lock().unwrap();
     *NREG.lock().unwrap() += 1;
-    add(load_insn(ty.clone()), Some(val), addr);
+    add(load_insn(ty), Some(val), addr);
     let imm = Some(*NREG.lock().unwrap());
     *NREG.lock().unwrap() += 1;
     add(IROp::Imm, imm, Some(num as usize));
@@ -266,7 +266,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
         NodeType::Lvar(_) |
         NodeType::Dot(_, _, _) |
         NodeType::Gvar(_, _, _) => {
-            let op = load_insn(Box::new(&node.ty));
+            let op = load_insn(&node.ty);
             let r = gen_lval(Box::new(node));
             add(op, r, r);
             return r;
@@ -289,7 +289,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
         }
         NodeType::Addr(expr) => gen_lval(expr),
         NodeType::Deref(expr) => {
-            let op = load_insn(Box::new(&node.ty));
+            let op = load_insn(&node.ty);
             let r = gen_expr(expr);
             add(op, r, r);
             return r;
@@ -315,7 +315,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                 TokenType::Equal => {
                     let rhs = gen_expr(rhs);
                     let lhs = gen_lval(lhs);
-                    add(store_insn(Box::new(&node.ty)), lhs, rhs);
+                    add(store_insn(&node.ty), lhs, rhs);
                     kill(rhs);
                     return lhs;
                 }
@@ -392,10 +392,10 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
             add(IROp::Neg, r, None);
             return r;
         }
-        NodeType::PreInc(expr) => return Some(gen_pre_inc(Box::new(&node.ty), expr, 1) as usize),
-        NodeType::PreDec(expr) => return Some(gen_pre_inc(Box::new(&node.ty), expr, -1) as usize),
-        NodeType::PostInc(expr) => return Some(gen_post_inc(Box::new(&node.ty), expr, 1) as usize),
-        NodeType::PostDec(expr) => return Some(gen_post_inc(Box::new(&node.ty), expr, -1) as usize),
+        NodeType::PreInc(expr) => return Some(gen_pre_inc(&node.ty, expr, 1) as usize),
+        NodeType::PreDec(expr) => return Some(gen_pre_inc(&node.ty, expr, -1) as usize),
+        NodeType::PostInc(expr) => return Some(gen_post_inc(&node.ty, expr, 1) as usize),
+        NodeType::PostDec(expr) => return Some(gen_post_inc(&node.ty, expr, -1) as usize),
         NodeType::Ternary(cond, then, els) => {
             //      cond then els  then
             // return 1 ? 3 : 5; => 3
@@ -440,7 +440,7 @@ fn gen_stmt(node: Node) {
                 let lhs = Some(*NREG.lock().unwrap());
                 *NREG.lock().unwrap() += 1;
                 add(IROp::Bprel, lhs, Some(offset));
-                add(store_insn(Box::new(&node.ty)), lhs, rhs);
+                add(store_insn(&node.ty), lhs, rhs);
                 kill(lhs);
                 kill(rhs);
             }
@@ -534,7 +534,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
 
                 for i in 0..args.len() {
                     let arg = &args[i];
-                    let op = store_arg_insn(Box::new(&arg.ty));
+                    let op = store_arg_insn(&arg.ty);
                     if let NodeType::Vardef(_, _, Scope::Local(offset)) = arg.op {
                         add(op, Some(offset), Some(i));
                     } else {

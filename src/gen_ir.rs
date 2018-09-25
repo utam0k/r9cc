@@ -223,6 +223,37 @@ fn gen_binop(ty: IROp, lhs: Box<Node>, rhs: Box<Node>) -> Option<usize> {
     return r1;
 }
 
+fn gen_pre_inc(ty: Box<&Type>, expr: Box<Node>, num: i32) -> i32 {
+    let addr = gen_lval(expr);
+    let val = *NREG.lock().unwrap();
+    *NREG.lock().unwrap() += 1;
+    add(load_insn(ty.clone()), Some(val), addr);
+    let imm = Some(*NREG.lock().unwrap());
+    *NREG.lock().unwrap() += 1;
+    add(IROp::Imm, imm, Some(num as usize));
+    add(IROp::Add, Some(val), imm);
+    kill(imm);
+    add(store_insn(ty), addr, Some(val));
+    kill(addr);
+    return val as i32;
+}
+
+fn gen_post_inc(ty: Box<&Type>, expr: Box<Node>, num: i32) -> i32 {
+    let addr = gen_lval(expr);
+    let val = *NREG.lock().unwrap();
+    *NREG.lock().unwrap() += 1;
+    add(load_insn(ty.clone()), Some(val), addr);
+    let imm = Some(*NREG.lock().unwrap());
+    *NREG.lock().unwrap() += 1;
+    add(IROp::Imm, imm, Some(num as usize));
+    add(IROp::Add, Some(val), imm);
+    add(store_insn(ty), addr, Some(val));
+    kill(addr);
+    add(IROp::Sub, Some(val), imm);
+    kill(imm);
+    return val as i32;
+}
+
 fn gen_expr(node: Box<Node>) -> Option<usize> {
     let node = *node;
     match node.op {
@@ -361,6 +392,10 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
             add(IROp::Neg, r, None);
             return r;
         }
+        NodeType::PreInc(expr) => return Some(gen_pre_inc(Box::new(&node.ty), expr, 1) as usize),
+        NodeType::PreDec(expr) => return Some(gen_pre_inc(Box::new(&node.ty), expr, -1) as usize),
+        NodeType::PostInc(expr) => return Some(gen_post_inc(Box::new(&node.ty), expr, 1) as usize),
+        NodeType::PostDec(expr) => return Some(gen_post_inc(Box::new(&node.ty), expr, -1) as usize),
         NodeType::Ternary(cond, then, els) => {
             //      cond then els  then
             // return 1 ? 3 : 5; => 3

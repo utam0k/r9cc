@@ -36,12 +36,15 @@ pub enum NodeType {
     Dot(Box<Node>, String, usize), // Struct member accessm, (expr, name, offset)
     Exclamation(Box<Node>), // !, expr
     Neg(Box<Node>), // -
+    PreInc(Box<Node>), // pre ++
+    PreDec(Box<Node>), // pre --
+    PostInc(Box<Node>), // post ++
+    PostDec(Box<Node>), // post --
     Return(Box<Node>), // "return", stmt
     Sizeof(Box<Node>), // "sizeof", expr
     Alignof(Box<Node>), // "_Alignof", expr
     Call(String, Vec<Node>), // Function call(name, args)
-    // Function definition(name, args, body, stacksize)
-    Func(String, Vec<Node>, Box<Node>, usize),
+    Func(String, Vec<Node>, Box<Node>, usize), // Function definition(name, args, body, stacksize)
     CompStmt(Vec<Node>), // Compound statement
     VecStmt(Vec<Node>), // For the purpose of assign a value when initializing an array.
     ExprStmt(Box<Node>), // Expression statement
@@ -295,7 +298,18 @@ fn postfix(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut lhs = primary(tokens, pos);
 
     loop {
+        if consume(TokenType::Inc, tokens, pos) {
+            lhs = new_expr!(NodeType::PostInc, lhs);
+            continue;
+        }
+
+        if consume(TokenType::Dec, tokens, pos) {
+            lhs = new_expr!(NodeType::PostDec, lhs);
+            continue;
+        }
+
         if consume(TokenType::Dot, tokens, pos) {
+            // TODO: Use new_expr!
             lhs = Node::new(NodeType::Dot(Box::new(lhs), ident(tokens, pos), 0));
             continue;
         }
@@ -333,6 +347,12 @@ fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     }
     if consume(TokenType::Exclamation, tokens, pos) {
         return new_expr!(NodeType::Exclamation, unary(tokens, pos));
+    }
+    if consume(TokenType::Inc, tokens, pos) {
+        return new_expr!(NodeType::PreInc, unary(tokens, pos));
+    }
+    if consume(TokenType::Dec, tokens, pos) {
+        return new_expr!(NodeType::PreDec, unary(tokens, pos));
     }
     if consume(TokenType::Sizeof, tokens, pos) {
         return new_expr!(NodeType::Sizeof, unary(tokens, pos));

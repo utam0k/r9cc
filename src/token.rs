@@ -50,6 +50,8 @@ pub enum TokenType {
     Logor, // ||
     Logand, // &&
     SHL, // <<
+    Inc, // ++
+    Dec, // --
     SHR, // >>
     Mod, // %
     Return, // "return"
@@ -119,6 +121,8 @@ lazy_static! {
         Symbol::new("while" , TokenType::While),
         Symbol::new("!=", TokenType::NE),
         Symbol::new("&&", TokenType::Logand),
+        Symbol::new("++", TokenType::Inc),
+        Symbol::new("--", TokenType::Dec),
         Symbol::new("->", TokenType::Arrow),
         Symbol::new("<<", TokenType::SHL),
         Symbol::new("<=", TokenType::LE),

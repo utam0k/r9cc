@@ -19,7 +19,7 @@ use std::sync::Mutex;
 
 lazy_static! {
     static ref USED: Mutex<[bool; REGS_N]> = Mutex::new([false; REGS_N]);
-    static ref REG_MAP: Mutex<Vec<Option<usize>>> = Mutex::new(vec![]);
+    static ref REG_MAP: Mutex<[Option<usize>; 8192]> = Mutex::new([None; 8192]);
 }
 
 fn used_get(i: usize) -> bool {
@@ -96,7 +96,6 @@ fn visit(irv: &mut Vec<IR>) {
 
 pub fn alloc_regs(fns: &mut Vec<Function>) {
     for f in fns {
-        *REG_MAP.lock().unwrap() = vec![None; f.ir.len()];
         *USED.lock().unwrap() = [false; REGS_N];
 
         visit(&mut f.ir);

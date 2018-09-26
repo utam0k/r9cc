@@ -46,12 +46,17 @@ fn escape(s: String, len: usize) -> String {
     return sb;
 }
 
+macro_rules! emit{
+    ($fmt:expr) => (print!(concat!("\t", $fmt, "\n")));
+    ($fmt:expr, $($arg:tt)*) => (print!(concat!("\t", $fmt, "\n"), $($arg)*));
+}
+
 fn emit_cmp(ir: IR, insn: &'static str) {
     let lhs = ir.lhs.unwrap();
     let rhs = ir.rhs.unwrap();
-    print!("  cmp {}, {}\n", REGS[lhs], REGS[rhs]);
-    print!("  {} {}\n", insn, REGS8[lhs]);
-    print!("  movzb {}, {}\n", REGS[lhs], REGS8[lhs]);
+    emit!("cmp {}, {}", REGS[lhs], REGS[rhs]);
+    emit!("{} {}", insn, REGS8[lhs]);
+    emit!("movzb {}, {}", REGS[lhs], REGS8[lhs]);
 }
 
 fn gen(f: Function) {
@@ -62,119 +67,119 @@ fn gen(f: Function) {
     print!(".text\n");
     print!(".global {}\n", f.name);
     print!("{}:\n", f.name);
-    print!("  push rbp\n");
-    print!("  mov rbp, rsp\n");
-    print!("  sub rsp, {}\n", roundup(f.stacksize, 16));
-    print!("  push r12\n");
-    print!("  push r13\n");
-    print!("  push r14\n");
-    print!("  push r15\n");
+    emit!("push rbp");
+    emit!("mov rbp, rsp");
+    emit!("sub rsp, {}", roundup(f.stacksize, 16));
+    emit!("push r12");
+    emit!("push r13");
+    emit!("push r14");
+    emit!("push r15");
 
     for ir in f.ir {
         let lhs = ir.lhs.unwrap();
         let rhs = ir.rhs.unwrap_or(0);
         match ir.op {
-            Imm => print!("  mov {}, {}\n", REGS[lhs], rhs as i32),
-            Mov => print!("  mov {}, {}\n", REGS[lhs], REGS[rhs]),
+            Imm => emit!("mov {}, {}", REGS[lhs], rhs as i32),
+            Mov => emit!("mov {}, {}", REGS[lhs], REGS[rhs]),
             Return => {
-                print!("  mov rax, {}\n", REGS[lhs]);
-                print!("  jmp {}\n", ret);
+                emit!("mov rax, {}", REGS[lhs]);
+                emit!("jmp {}", ret);
             }
             Call(name, nargs, args) => {
                 for i in 0..nargs {
-                    print!("  mov {}, {}\n", ARGREG64[i], REGS[args[i]]);
+                    emit!("mov {}, {}", ARGREG64[i], REGS[args[i]]);
                 }
-                print!("  push r10\n");
-                print!("  push r11\n");
-                print!("  mov rax, 0\n");
-                print!("  call {}\n", name);
-                print!("  pop r11\n");
-                print!("  pop r10\n");
+                emit!("push r10");
+                emit!("push r11");
+                emit!("mov rax, 0");
+                emit!("call {}", name);
+                emit!("pop r11");
+                emit!("pop r10");
 
-                print!("  mov {}, rax\n", REGS[lhs]);
+                emit!("mov {}, rax", REGS[lhs]);
             }
             Label => print!(".L{}:\n", lhs),
-            LabelAddr(name) => print!("  lea {}, {}\n", REGS[lhs], name),
-            Neg => print!("  neg {}\n", REGS[lhs]),
+            LabelAddr(name) => emit!("lea {}, {}", REGS[lhs], name),
+            Neg => emit!("neg {}", REGS[lhs]),
             EQ => emit_cmp(ir, "sete"),
             NE => emit_cmp(ir, "setne"),
             LT => emit_cmp(ir, "setl"),
             LE => emit_cmp(ir, "setle"),
-            AND => print!("  and {}, {}\n", REGS[lhs], REGS[rhs]),
-            OR => print!("  or {}, {}\n", REGS[lhs], REGS[rhs]),
-            XOR => print!("  xor {}, {}\n", REGS[lhs], REGS[rhs]),
+            AND => emit!("and {}, {}", REGS[lhs], REGS[rhs]),
+            OR => emit!("or {}, {}", REGS[lhs], REGS[rhs]),
+            XOR => emit!("xor {}, {}", REGS[lhs], REGS[rhs]),
             SHL => {
-                print!("  mov cl, {}\n", REGS8[rhs]);
-                print!("  shl {}, cl\n", REGS[lhs]);
+                emit!("mov cl, {}", REGS8[rhs]);
+                emit!("shl {}, cl", REGS[lhs]);
             }
             SHR => {
-                print!("  mov cl, {}\n", REGS8[rhs]);
-                print!("  shr {}, cl\n", REGS[lhs]);
+                emit!("mov cl, {}", REGS8[rhs]);
+                emit!("shr {}, cl", REGS[lhs]);
             }
             Mod => {
                 /* Same mean(?).
-                 * print!("  mov rdx, 0\n");
-                 * print!("  mov rax, {}\n", REGS[lhs]);
+                 * emit!("mov rdx, 0");
+                 * emit!("mov rax, {}", REGS[lhs]);
                  */
-                print!("  mov rax, {}\n", REGS[lhs]);
-                print!("  cqo\n"); // rax -> rdx:rax
-                print!("  div {}\n", REGS[rhs]);
-                print!("  mov {}, rdx\n", REGS[lhs]);
+                emit!("mov rax, {}", REGS[lhs]);
+                emit!("cqo"); // rax -> rdx:rax
+                emit!("div {}", REGS[rhs]);
+                emit!("mov {}, rdx", REGS[lhs]);
             }
-            Jmp => print!("  jmp .L{}\n", lhs),
+            Jmp => emit!("jmp .L{}", lhs),
             If => {
-                print!("  cmp {}, 0\n", REGS[lhs]);
-                print!("  jne .L{}\n", rhs);
+                emit!("cmp {}, 0", REGS[lhs]);
+                emit!("jne .L{}", rhs);
             }
             Unless => {
-                print!("  cmp {}, 0\n", REGS[lhs]);
-                print!("  je .L{}\n", rhs);
+                emit!("cmp {}, 0", REGS[lhs]);
+                emit!("je .L{}", rhs);
             }
             Load8 => {
-                print!("  mov {}, [{}]\n", REGS8[lhs], REGS[rhs]);
-                print!("  movzb {}, {}\n", REGS[lhs], REGS8[lhs]);
+                emit!("mov {}, [{}]", REGS8[lhs], REGS[rhs]);
+                emit!("movzb {}, {}", REGS[lhs], REGS8[lhs]);
             }
-            Load32 => print!("  mov {}, [{}]\n", REGS32[lhs], REGS[rhs]),
-            Load64 => print!("  mov {}, [{}]\n", REGS[lhs], REGS[rhs]),
-            Store8 => print!("  mov [{}], {}\n", REGS[lhs], REGS8[rhs]),
-            Store32 => print!("  mov [{}], {}\n", REGS[lhs], REGS32[rhs]),
-            Store64 => print!("  mov [{}], {}\n", REGS[lhs], REGS[rhs]),
-            Store8Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG8[rhs]),
-            Store32Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG32[rhs]),
-            Store64Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG64[rhs]),
-            Add => print!("  add {}, {}\n", REGS[lhs], REGS[rhs]),
-            AddImm => print!("  add {}, {}\n", REGS[lhs], rhs as i32),
-            Sub => print!("  sub {}, {}\n", REGS[lhs], REGS[rhs]),
-            SubImm => print!("  sub {}, {}\n", REGS[lhs], rhs as i32),
-            Bprel => print!("  lea {}, [rbp-{}]\n", REGS[lhs], rhs),
+            Load32 => emit!("mov {}, [{}]", REGS32[lhs], REGS[rhs]),
+            Load64 => emit!("mov {}, [{}]", REGS[lhs], REGS[rhs]),
+            Store8 => emit!("mov [{}], {}", REGS[lhs], REGS8[rhs]),
+            Store32 => emit!("mov [{}], {}", REGS[lhs], REGS32[rhs]),
+            Store64 => emit!("mov [{}], {}", REGS[lhs], REGS[rhs]),
+            Store8Arg => emit!("mov [rbp-{}], {}", lhs, ARGREG8[rhs]),
+            Store32Arg => emit!("mov [rbp-{}], {}", lhs, ARGREG32[rhs]),
+            Store64Arg => emit!("mov [rbp-{}], {}", lhs, ARGREG64[rhs]),
+            Add => emit!("add {}, {}", REGS[lhs], REGS[rhs]),
+            AddImm => emit!("add {}, {}", REGS[lhs], rhs as i32),
+            Sub => emit!("sub {}, {}", REGS[lhs], REGS[rhs]),
+            SubImm => emit!("sub {}, {}", REGS[lhs], rhs as i32),
+            Bprel => emit!("lea {}, [rbp-{}]", REGS[lhs], rhs),
             Mul => {
-                print!("  mov rax, {}\n", REGS[rhs]);
-                print!("  mul {}\n", REGS[lhs]);
-                print!("  mov {}, rax\n", REGS[lhs]);
+                emit!("mov rax, {}", REGS[rhs]);
+                emit!("mul {}", REGS[lhs]);
+                emit!("mov {}, rax", REGS[lhs]);
             }
             MulImm => {
-                print!("  mov rax, {}\n", rhs as i32);
-                print!("  mul {}\n", REGS[lhs]);
-                print!("  mov {}, rax\n", REGS[lhs]);
+                emit!("mov rax, {}", rhs as i32);
+                emit!("mul {}", REGS[lhs]);
+                emit!("mov {}, rax", REGS[lhs]);
             }
             Div => {
-                print!("  mov rax, {}\n", REGS[lhs]);
-                print!("  cqo\n");
-                print!("  div {}\n", REGS[rhs]);
-                print!("  mov {}, rax\n", REGS[lhs]);
+                emit!("mov rax, {}", REGS[lhs]);
+                emit!("cqo");
+                emit!("div {}", REGS[rhs]);
+                emit!("mov {}, rax", REGS[lhs]);
             }
             Nop | Kill => (),
         }
     }
 
     print!("{}:\n", ret);
-    print!("  pop r15\n");
-    print!("  pop r14\n");
-    print!("  pop r13\n");
-    print!("  pop r12\n");
-    print!("  mov rsp, rbp\n");
-    print!("  pop rbp\n");
-    print!("  ret\n");
+    emit!("pop r15");
+    emit!("pop r14");
+    emit!("pop r13");
+    emit!("pop r12");
+    emit!("mov rsp, rbp");
+    emit!("pop rbp");
+    emit!("ret");
 }
 
 pub fn gen_x86(globals: Vec<Var>, fns: Vec<Function>) {
@@ -186,7 +191,7 @@ pub fn gen_x86(globals: Vec<Var>, fns: Vec<Function>) {
                 continue;
             }
             print!("{}:\n", var.name);
-            print!("  .ascii \"{}\"\n", escape(data, len));
+            emit!(".ascii \"{}\"", escape(data, len));
             continue;
         }
         unreachable!();

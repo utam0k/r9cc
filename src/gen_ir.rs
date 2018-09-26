@@ -64,8 +64,11 @@ impl Function {
 #[derive(Debug, Clone, PartialEq)]
 pub enum IROp {
     Add,
+    AddImm,
     Sub,
+    SubImm,
     Mul,
+    MulImm,
     Div,
     Imm,
     Bprel,
@@ -187,17 +190,14 @@ fn store_arg_insn(ty: &Type) -> IROp {
 // > conversion.
 //
 // > This function evaluates a given node as an lvalue.
+
 fn gen_lval(node: Box<Node>) -> Option<usize> {
     match node.op {
         NodeType::Deref(expr) => gen_expr(expr),
         NodeType::Dot(ref expr, _, ref offset) => {
-            let r1 = gen_lval(expr.clone());
-            let r2 = Some(*NREG.lock().unwrap());
-            *NREG.lock().unwrap() += 1;
-            add(IROp::Imm, r2, Some(offset.clone()));
-            add(IROp::Add, r1, r2);
-            kill(r2);
-            r1
+            let r = gen_lval(expr.clone());
+            add(IROp::AddImm, r, Some(offset.clone()));
+            r
         }
         NodeType::Lvar(Scope::Local(offset)) => {
             let r = Some(*NREG.lock().unwrap());
@@ -228,29 +228,15 @@ fn gen_pre_inc(ty: &Type, expr: Box<Node>, num: i32) -> i32 {
     let val = *NREG.lock().unwrap();
     *NREG.lock().unwrap() += 1;
     add(load_insn(ty), Some(val), addr);
-    let imm = Some(*NREG.lock().unwrap());
-    *NREG.lock().unwrap() += 1;
-    add(IROp::Imm, imm, Some(num as usize));
-    add(IROp::Add, Some(val), imm);
-    kill(imm);
+    add(IROp::AddImm, Some(val), Some(num as usize));
     add(store_insn(ty), addr, Some(val));
     kill(addr);
     return val as i32;
 }
 
 fn gen_post_inc(ty: &Type, expr: Box<Node>, num: i32) -> i32 {
-    let addr = gen_lval(expr);
-    let val = *NREG.lock().unwrap();
-    *NREG.lock().unwrap() += 1;
-    add(load_insn(ty), Some(val), addr);
-    let imm = Some(*NREG.lock().unwrap());
-    *NREG.lock().unwrap() += 1;
-    add(IROp::Imm, imm, Some(num as usize));
-    add(IROp::Add, Some(val), imm);
-    add(store_insn(ty), addr, Some(val));
-    kill(addr);
-    add(IROp::Sub, Some(val), imm);
-    kill(imm);
+    let val = gen_pre_inc(ty, expr, num);
+    add(IROp::SubImm, Some(val as usize), Some(num as usize));
     return val as i32;
 }
 
@@ -323,11 +309,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                     let insn = IROp::from(op);
                     if let Ctype::Ptr(ref ptr_to) = lhs.ty.ty.clone() {
                         let rhs = gen_expr(rhs);
-                        let r = Some(*NREG.lock().unwrap());
-                        *NREG.lock().unwrap() += 1;
-                        add(IROp::Imm, r, Some(ptr_to.size));
-                        add(IROp::Mul, rhs, r);
-                        kill(r);
+                        add(IROp::MulImm, rhs, Some(ptr_to.size));
 
                         let lhs = gen_expr(lhs);
                         add(insn, lhs, rhs);

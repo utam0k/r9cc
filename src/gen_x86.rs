@@ -142,10 +142,17 @@ fn gen(f: Function) {
             Store32Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG32[ir.rhs.unwrap()]),
             Store64Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG64[ir.rhs.unwrap()]),
             Add => print!("  add {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            AddImm => print!("  add {}, {}\n", REGS[lhs], ir.rhs.unwrap() as i32),
             Sub => print!("  sub {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            SubImm => print!("  sub {}, {}\n", REGS[lhs], ir.rhs.unwrap() as i32),
             Bprel => print!("  lea {}, [rbp-{}]\n", REGS[lhs], ir.rhs.unwrap()),
             Mul => {
                 print!("  mov rax, {}\n", REGS[ir.rhs.unwrap()]);
+                print!("  mul {}\n", REGS[lhs]);
+                print!("  mov {}, rax\n", REGS[lhs]);
+            }
+            MulImm => {
+                print!("  mov rax, {}\n", ir.rhs.unwrap() as i32);
                 print!("  mul {}\n", REGS[lhs]);
                 print!("  mov {}, rax\n", REGS[lhs]);
             }

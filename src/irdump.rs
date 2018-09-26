@@ -19,6 +19,7 @@ impl<'a> From<&'a IROp> for IRInfo {
         use self::IROp::*;
         match op {
             Add => IRInfo::new("ADD", IRType::RegReg),
+            AddImm => IRInfo::new("ADD", IRType::RegImm),
             Call(_, _, _) => IRInfo::new("CALL", IRType::Call),
             Div => IRInfo::new("DIV", IRType::RegReg),
             Imm => IRInfo::new("MOV", IRType::RegImm),
@@ -42,6 +43,7 @@ impl<'a> From<&'a IROp> for IRInfo {
             Load64 => IRInfo::new("LOAD64", IRType::RegReg),
             Mov => IRInfo::new("MOV", IRType::RegReg),
             Mul => IRInfo::new("MUL", IRType::RegReg),
+            MulImm => IRInfo::new("MUL", IRType::RegImm),
             Nop => IRInfo::new("NOP", IRType::Noarg),
             Return => IRInfo::new("RET", IRType::Reg),
             Store8 => IRInfo::new("STORE8", IRType::RegReg),
@@ -51,6 +53,7 @@ impl<'a> From<&'a IROp> for IRInfo {
             Store32Arg => IRInfo::new("STORE32_ARG", IRType::ImmImm),
             Store64Arg => IRInfo::new("STORE64_ARG", IRType::ImmImm),
             Sub => IRInfo::new("SUB", IRType::RegReg),
+            SubImm => IRInfo::new("SUB", IRType::RegImm),
             Bprel => IRInfo::new("BPREL", IRType::RegImm),
             If => IRInfo::new("IF", IRType::RegLabel),
             Unless => IRInfo::new("UNLESS", IRType::RegLabel),
@@ -78,7 +81,7 @@ impl fmt::Display for IR {
             Reg => write!(f, "  {} r{}", info.name, lhs),
             Jmp => write!(f, "  {} .L{}", info.name, lhs),
             RegReg => write!(f, "  {} r{}, r{}", info.name, lhs, self.rhs.unwrap()),
-            RegImm => write!(f, "  {} r{}, {}", info.name, lhs, self.rhs.unwrap()),
+            RegImm => write!(f, "  {} r{}, {}", info.name, lhs, self.rhs.unwrap() as i32),
             ImmImm => write!(f, "  {} {}, {}", info.name, lhs, self.rhs.unwrap()),
             RegLabel => write!(f, "  {} r{}, .L{}", info.name, lhs, self.rhs.unwrap()),
             Call => {

@@ -72,9 +72,10 @@ fn gen(f: Function) {
 
     for ir in f.ir {
         let lhs = ir.lhs.unwrap();
+        let rhs = ir.rhs.unwrap_or(0);
         match ir.op {
-            Imm => print!("  mov {}, {}\n", REGS[lhs], ir.rhs.unwrap() as i32),
-            Mov => print!("  mov {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            Imm => print!("  mov {}, {}\n", REGS[lhs], rhs as i32),
+            Mov => print!("  mov {}, {}\n", REGS[lhs], REGS[rhs]),
             Return => {
                 print!("  mov rax, {}\n", REGS[lhs]);
                 print!("  jmp {}\n", ret);
@@ -99,15 +100,15 @@ fn gen(f: Function) {
             NE => emit_cmp(ir, "setne"),
             LT => emit_cmp(ir, "setl"),
             LE => emit_cmp(ir, "setle"),
-            AND => print!("  and {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            OR => print!("  or {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            XOR => print!("  xor {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
+            AND => print!("  and {}, {}\n", REGS[lhs], REGS[rhs]),
+            OR => print!("  or {}, {}\n", REGS[lhs], REGS[rhs]),
+            XOR => print!("  xor {}, {}\n", REGS[lhs], REGS[rhs]),
             SHL => {
-                print!("  mov cl, {}\n", REGS8[ir.rhs.unwrap()]);
+                print!("  mov cl, {}\n", REGS8[rhs]);
                 print!("  shl {}, cl\n", REGS[lhs]);
             }
             SHR => {
-                print!("  mov cl, {}\n", REGS8[ir.rhs.unwrap()]);
+                print!("  mov cl, {}\n", REGS8[rhs]);
                 print!("  shr {}, cl\n", REGS[lhs]);
             }
             Mod => {
@@ -117,49 +118,49 @@ fn gen(f: Function) {
                  */
                 print!("  mov rax, {}\n", REGS[lhs]);
                 print!("  cqo\n"); // rax -> rdx:rax
-                print!("  div {}\n", REGS[ir.rhs.unwrap()]);
+                print!("  div {}\n", REGS[rhs]);
                 print!("  mov {}, rdx\n", REGS[lhs]);
             }
             Jmp => print!("  jmp .L{}\n", lhs),
             If => {
                 print!("  cmp {}, 0\n", REGS[lhs]);
-                print!("  jne .L{}\n", ir.rhs.unwrap());
+                print!("  jne .L{}\n", rhs);
             }
             Unless => {
                 print!("  cmp {}, 0\n", REGS[lhs]);
-                print!("  je .L{}\n", ir.rhs.unwrap());
+                print!("  je .L{}\n", rhs);
             }
             Load8 => {
-                print!("  mov {}, [{}]\n", REGS8[lhs], REGS[ir.rhs.unwrap()]);
+                print!("  mov {}, [{}]\n", REGS8[lhs], REGS[rhs]);
                 print!("  movzb {}, {}\n", REGS[lhs], REGS8[lhs]);
             }
-            Load32 => print!("  mov {}, [{}]\n", REGS32[lhs], REGS[ir.rhs.unwrap()]),
-            Load64 => print!("  mov {}, [{}]\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            Store8 => print!("  mov [{}], {}\n", REGS[lhs], REGS8[ir.rhs.unwrap()]),
-            Store32 => print!("  mov [{}], {}\n", REGS[lhs], REGS32[ir.rhs.unwrap()]),
-            Store64 => print!("  mov [{}], {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            Store8Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG8[ir.rhs.unwrap()]),
-            Store32Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG32[ir.rhs.unwrap()]),
-            Store64Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG64[ir.rhs.unwrap()]),
-            Add => print!("  add {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            AddImm => print!("  add {}, {}\n", REGS[lhs], ir.rhs.unwrap() as i32),
-            Sub => print!("  sub {}, {}\n", REGS[lhs], REGS[ir.rhs.unwrap()]),
-            SubImm => print!("  sub {}, {}\n", REGS[lhs], ir.rhs.unwrap() as i32),
-            Bprel => print!("  lea {}, [rbp-{}]\n", REGS[lhs], ir.rhs.unwrap()),
+            Load32 => print!("  mov {}, [{}]\n", REGS32[lhs], REGS[rhs]),
+            Load64 => print!("  mov {}, [{}]\n", REGS[lhs], REGS[rhs]),
+            Store8 => print!("  mov [{}], {}\n", REGS[lhs], REGS8[rhs]),
+            Store32 => print!("  mov [{}], {}\n", REGS[lhs], REGS32[rhs]),
+            Store64 => print!("  mov [{}], {}\n", REGS[lhs], REGS[rhs]),
+            Store8Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG8[rhs]),
+            Store32Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG32[rhs]),
+            Store64Arg => print!("  mov [rbp-{}], {}\n", lhs, ARGREG64[rhs]),
+            Add => print!("  add {}, {}\n", REGS[lhs], REGS[rhs]),
+            AddImm => print!("  add {}, {}\n", REGS[lhs], rhs as i32),
+            Sub => print!("  sub {}, {}\n", REGS[lhs], REGS[rhs]),
+            SubImm => print!("  sub {}, {}\n", REGS[lhs], rhs as i32),
+            Bprel => print!("  lea {}, [rbp-{}]\n", REGS[lhs], rhs),
             Mul => {
-                print!("  mov rax, {}\n", REGS[ir.rhs.unwrap()]);
+                print!("  mov rax, {}\n", REGS[rhs]);
                 print!("  mul {}\n", REGS[lhs]);
                 print!("  mov {}, rax\n", REGS[lhs]);
             }
             MulImm => {
-                print!("  mov rax, {}\n", ir.rhs.unwrap() as i32);
+                print!("  mov rax, {}\n", rhs as i32);
                 print!("  mul {}\n", REGS[lhs]);
                 print!("  mov {}, rax\n", REGS[lhs]);
             }
             Div => {
                 print!("  mov rax, {}\n", REGS[lhs]);
                 print!("  cqo\n");
-                print!("  div {}\n", REGS[ir.rhs.unwrap()]);
+                print!("  div {}\n", REGS[rhs]);
                 print!("  mov {}, rax\n", REGS[lhs]);
             }
             Nop | Kill => (),

@@ -42,6 +42,7 @@ lazy_static!{
     static ref STRLABEL: Mutex<usize> = Mutex::new(0);
     static ref GLOBALS: Mutex<Vec<Var>> = Mutex::new(vec![]);
     static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
+    static ref ENV: Mutex<Env> = Mutex::new(Env::new(None));
 }
 
 #[derive(Debug, Clone)]
@@ -57,20 +58,21 @@ impl Env {
             next,
         }
     }
+}
 
-    pub fn find(&self, name: &String) -> Option<&Var> {
-        let mut env: &Env = self;
-        loop {
-            if let Some(var) = env.vars.get(name) {
-                return Some(&var);
+fn find_var(name: &String) -> Option<Var> {
+    let env = ENV.lock().unwrap().clone();
+    let mut next: &Option<Box<Env>> = &Some(Box::new(env));
+    loop {
+        if let Some(ref e) = next {
+            let var = e.vars.get(name);
+            if var.is_some() {
+                return var.cloned();
             }
-            if let Some(ref next_env) = env.next {
-                env = &next_env;
-            } else {
-                break;
-            }
+            next = &e.next;
+        } else {
+            return None;
         }
-        return None;
     }
 }
 
@@ -98,7 +100,7 @@ fn check_lval(node: &Node) {
     panic!("not an lvalue: {:?}", node.op);
 }
 
-fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
+fn walk(mut node: Node, decay: bool) -> Node {
     use self::NodeType::*;
     let op = node.op.clone();
     match op {
@@ -115,7 +117,7 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
             return maybe_decay(ret, decay);
         }
         Ident(ref name) => {
-            if let Some(var) = env.find(name) {
+            if let Some(var) = find_var(name) {
                 match var.scope {
                     Scope::Local(offset) => {
                         let mut ret = Node::new(NodeType::Lvar(Scope::Local(offset)));
@@ -139,49 +141,46 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
             *STACKSIZE.lock().unwrap() += node.ty.size;
             let offset = *STACKSIZE.lock().unwrap();
 
-            env.vars.insert(
+            ENV.lock().unwrap().vars.insert(
                 name.clone(),
                 Var::new(node.ty.clone(), name.clone(), Scope::Local(offset)),
             );
 
             let mut init = None;
             if let Some(mut init2) = init_may {
-                init = Some(Box::new(walk(*init2, env, true)));
+                init = Some(Box::new(walk(*init2, true)));
             }
             node.op = Vardef(name, init, Scope::Local(offset));
         }
         If(mut cond, mut then, els_may) => {
-            cond = Box::new(walk(*cond, env, true));
-            then = Box::new(walk(*then, env, true));
+            cond = Box::new(walk(*cond, true));
+            then = Box::new(walk(*then, true));
             let mut new_els = None;
             if let Some(mut els) = els_may {
-                new_els = Some(Box::new(walk(*els, env, true)));
+                new_els = Some(Box::new(walk(*els, true)));
             }
             node.op = If(cond, then, new_els);
         }
         Ternary(mut cond, mut then, mut els) => {
-            cond = Box::new(walk(*cond, env, true));
-            then = Box::new(walk(*then, env, true));
-            els = Box::new(walk(*els, env, true));
+            cond = Box::new(walk(*cond, true));
+            then = Box::new(walk(*then, true));
+            els = Box::new(walk(*els, true));
             node.ty = then.ty.clone();
             node.op = Ternary(cond, then, els);
         }
         For(init, cond, inc, body) => {
             node.op = For(
-                Box::new(walk(*init, env, true)),
-                Box::new(walk(*cond, env, true)),
-                Box::new(walk(*inc, env, true)),
-                Box::new(walk(*body, env, true)),
+                Box::new(walk(*init, true)),
+                Box::new(walk(*cond, true)),
+                Box::new(walk(*inc, true)),
+                Box::new(walk(*body, true)),
             );
         }
         DoWhile(body, cond) => {
-            node.op = DoWhile(
-                Box::new(walk(*body, env, true)),
-                Box::new(walk(*cond, env, true)),
-            );
+            node.op = DoWhile(Box::new(walk(*body, true)), Box::new(walk(*cond, true)));
         }
         Dot(mut expr, name, _) => {
-            expr = Box::new(walk(*expr, env, true));
+            expr = Box::new(walk(*expr, true));
             let offset;
             if let Ctype::Struct(ref members) = expr.ty.ty {
                 if members.is_empty() {
@@ -217,8 +216,8 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
         BinOp(token_type, mut lhs, mut rhs) => {
             match token_type {
                 TokenType::Plus | TokenType::Minus => {
-                    lhs = Box::new(walk(*lhs, env, true));
-                    rhs = Box::new(walk(*rhs, env, true));
+                    lhs = Box::new(walk(*lhs, true));
+                    rhs = Box::new(walk(*rhs, true));
 
                     if matches!(rhs.ty.ty , Ctype::Ptr(_)) {
                         swap(&mut lhs, &mut rhs);
@@ -231,93 +230,91 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
                     node.ty = lhs.ty;
                 }
                 TokenType::Equal => {
-                    lhs = Box::new(walk(*lhs, env, false));
+                    lhs = Box::new(walk(*lhs, false));
                     check_lval(&*lhs);
-                    node.op = BinOp(token_type, lhs.clone(), Box::new(walk(*rhs, env, true)));
+                    node.op = BinOp(token_type, lhs.clone(), Box::new(walk(*rhs, true)));
                     node.ty = lhs.ty;
                 }
                 _ => {
-                    lhs = Box::new(walk(*lhs, env, true));
-                    rhs = Box::new(walk(*rhs, env, true));
+                    lhs = Box::new(walk(*lhs, true));
+                    rhs = Box::new(walk(*rhs, true));
                     node.op = BinOp(token_type, lhs.clone(), rhs);
                     node.ty = lhs.ty;
                 }
             }
         }
         PreInc(mut expr) => {
-            expr = Box::new(walk(*expr, env, true));
+            expr = Box::new(walk(*expr, true));
             node.op = PreInc(expr);
         }
         PreDec(mut expr) => {
-            expr = Box::new(walk(*expr, env, true));
+            expr = Box::new(walk(*expr, true));
             node.op = PreDec(expr);
         }
         PostInc(mut expr) => {
-            expr = Box::new(walk(*expr, env, true));
+            expr = Box::new(walk(*expr, true));
             node.op = PostInc(expr);
         }
         PostDec(mut expr) => {
-            expr = Box::new(walk(*expr, env, true));
+            expr = Box::new(walk(*expr, true));
             node.op = PostDec(expr);
         }
         Neg(mut expr) => {
-            expr = Box::new(walk(*expr, env, true));
+            expr = Box::new(walk(*expr, true));
             node.op = Neg(expr);
         }
         Exclamation(mut expr) => {
-            expr = Box::new(walk(*expr, env, true));
+            expr = Box::new(walk(*expr, true));
             node.op = Exclamation(expr);
         }
         Addr(mut expr) => {
-            expr = Box::new(walk(*expr, env, true));
+            expr = Box::new(walk(*expr, true));
             check_lval(&*expr);
             node.ty = Box::new(Type::ptr_to(expr.ty.clone()));
             node.op = Addr(expr);
         }
         Deref(mut expr) => {
-            expr = Box::new(walk(*expr, env, true));
+            expr = Box::new(walk(*expr, true));
             match expr.ty.ty {
                 Ctype::Ptr(ref ptr_to) => node.ty = ptr_to.clone(),
-                Ctype::Void => panic!("cannot dereference void opinter"),
+                Ctype::Void => panic!("cannot dereference void pointer"),
                 _ => panic!("operand must be a pointer"),
             }
             node.op = Deref(expr);
         }
-        Return(expr) => node.op = Return(Box::new(walk(*expr, env, true))),
-        ExprStmt(expr) => node.op = ExprStmt(Box::new(walk(*expr, env, true))),
+        Return(expr) => node.op = Return(Box::new(walk(*expr, true))),
+        ExprStmt(expr) => node.op = ExprStmt(Box::new(walk(*expr, true))),
         Sizeof(mut expr) => {
-            expr = Box::new(walk(*expr, env, false));
+            expr = Box::new(walk(*expr, false));
             node = Node::int_ty(expr.ty.size as i32)
         }
         Alignof(mut expr) => {
-            expr = Box::new(walk(*expr, env, false));
+            expr = Box::new(walk(*expr, false));
             node = Node::int_ty(expr.ty.align as i32)
         }
         Call(name, mut args) => {
-            args = args.into_iter().map(|arg| walk(arg, env, true)).collect();
+            args = args.into_iter().map(|arg| walk(arg, true)).collect();
             node.op = Call(name, args);
         }
         Func(name, mut args, body, stacksize) => {
-            args = args.into_iter().map(|arg| walk(arg, env, true)).collect();
-            node.op = Func(name, args, Box::new(walk(*body, env, true)), stacksize);
+            args = args.into_iter().map(|arg| walk(arg, true)).collect();
+            node.op = Func(name, args, Box::new(walk(*body, true)), stacksize);
         }
         CompStmt(mut stmts) => {
-            let mut new_env = Env::new(Some(Box::new(env.clone())));
-            stmts = stmts
-                .into_iter()
-                .map(|stmt| walk(stmt, &mut new_env, true))
-                .collect();
+            let env = ENV.lock().unwrap().clone();
+            *ENV.lock().unwrap() = Env::new(Some(Box::new(env)));
+            stmts = stmts.into_iter().map(|stmt| walk(stmt, true)).collect();
+            let env = ENV.lock().unwrap().clone();
+            // Rollback
+            *ENV.lock().unwrap() = *env.next.unwrap();
             node.op = CompStmt(stmts);
         }
         VecStmt(mut stmts) => {
-            stmts = stmts
-                .into_iter()
-                .map(|stmt| walk(stmt, env, true))
-                .collect();
+            stmts = stmts.into_iter().map(|stmt| walk(stmt, true)).collect();
             node.op = VecStmt(stmts);
         }
         StmtExpr(body) => {
-            node.op = StmtExpr(Box::new(walk(*body, env, true)));
+            node.op = StmtExpr(Box::new(walk(*body, true)));
             node.ty = Box::new(Type::int_ty())
         }
         Null => (),
@@ -328,18 +325,17 @@ fn walk(mut node: Node, env: &mut Env, decay: bool) -> Node {
 
 pub fn sema(nodes: Vec<Node>) -> (Vec<Node>, Vec<Var>) {
     let mut new_nodes = vec![];
-    let mut topenv = Env::new(None);
 
     for mut node in nodes {
         if let NodeType::Vardef(name, _, Scope::Global(data, len, is_extern)) = node.op {
             let var = Var::new_global(node.ty, name.clone(), data, len, is_extern);
             GLOBALS.lock().unwrap().push(var.clone());
-            topenv.vars.insert(name, var);
+            ENV.lock().unwrap().vars.insert(name, var);
             continue;
         }
 
         assert!(matches!(node.op, NodeType::Func(_, _, _, _)));
-        let mut new = walk(node, &mut topenv, true);
+        let mut new = walk(node, true);
         if let NodeType::Func(name, args, body, _) = new.op {
             new.op = NodeType::Func(name.clone(), args, body, *STACKSIZE.lock().unwrap());
             *STACKSIZE.lock().unwrap() = 0;

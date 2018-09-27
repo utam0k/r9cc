@@ -92,19 +92,18 @@ fn maybe_decay(base: Node, decay: bool) -> Node {
 
 fn check_lval(node: &Node) {
     let op = &node.op;
-    if matches!(op, NodeType::Lvar(_)) || matches!(op, NodeType::Gvar(_, _, _)) ||
-        matches!(op, NodeType::Deref(_)) || matches!(op, NodeType::Dot(_, _, _))
+    if !matches!(op, NodeType::Lvar(_)) && !matches!(op, NodeType::Gvar(_, _, _)) &&
+        !matches!(op, NodeType::Deref(_)) && !matches!(op, NodeType::Dot(_, _, _))
     {
-        return;
+        panic!("not an lvalue: {:?}", node.op);
     }
-    panic!("not an lvalue: {:?}", node.op);
 }
 
 fn walk(mut node: Node, decay: bool) -> Node {
     use self::NodeType::*;
     let op = node.op.clone();
     match op {
-        Num(_) => (),
+        Num(_) | Null => (),
         Str(data, len) => {
             let name = format!(".L.str{}", *STRLABEL.lock().unwrap());
             *STRLABEL.lock().unwrap() += 1;
@@ -317,7 +316,6 @@ fn walk(mut node: Node, decay: bool) -> Node {
             node.op = StmtExpr(Box::new(walk(*body, true)));
             node.ty = Box::new(Type::int_ty())
         }
-        Null => (),
         _ => panic!("unknown node type"),
     };
     node

@@ -641,9 +641,11 @@ fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 }
 
 fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
-    match tokens[*pos].ty {
+    let t = &tokens[*pos];
+    *pos += 1;
+
+    match t.ty {
         TokenType::Typedef => {
-            *pos += 1;
             let node = decl(tokens, pos);
             if let NodeType::Vardef(name, _, _) = node.op {
                 ENV.lock().unwrap().typedefs.insert(name, *node.ty);
@@ -652,10 +654,8 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
                 unreachable!();
             }
         }
-        TokenType::Int | TokenType::Char | TokenType::Struct => return decl(tokens, pos),
         TokenType::If => {
             let mut els = None;
-            *pos += 1;
             expect(TokenType::LeftParen, tokens, pos);
             let cond = expr(&tokens, pos);
             expect(TokenType::RightParen, tokens, pos);
@@ -666,7 +666,6 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             Node::new(NodeType::If(Box::new(cond), Box::new(then), els))
         }
         TokenType::For => {
-            *pos += 1;
             expect(TokenType::LeftParen, tokens, pos);
             let init: Box<Node> = if is_typename(&tokens[*pos]) {
                 Box::new(decl(tokens, pos))
@@ -681,7 +680,6 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             Node::new(NodeType::For(init, cond, inc, body))
         }
         TokenType::While => {
-            *pos += 1;
             expect(TokenType::LeftParen, tokens, pos);
             let init = Box::new(Node::new(NodeType::Null));
             let inc = Box::new(Node::new(NodeType::Null));
@@ -691,7 +689,6 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             Node::new(NodeType::For(init, cond, inc, body))
         }
         TokenType::Do => {
-            *pos += 1;
             let body = Box::new(stmt(tokens, pos));
             expect(TokenType::While, tokens, pos);
             expect(TokenType::LeftParen, tokens, pos);
@@ -701,24 +698,20 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             Node::new(NodeType::DoWhile(body, cond))
         }
         TokenType::Return => {
-            *pos += 1;
             let expr = expr(&tokens, pos);
             expect(TokenType::Semicolon, tokens, pos);
             Node::new(NodeType::Return(Box::new(expr)))
         }
         TokenType::LeftBrace => {
-            *pos += 1;
             let mut stmts = vec![];
             while !consume(TokenType::RightBrace, tokens, pos) {
                 stmts.push(stmt(&tokens, pos));
             }
             Node::new(NodeType::CompStmt(stmts))
         }
-        TokenType::Semicolon => {
-            *pos += 1;
-            Node::new(NodeType::Null)
-        }
+        TokenType::Semicolon => Node::new(NodeType::Null),
         _ => {
+            *pos -= 1;
             if is_typename(&tokens[*pos]) {
                 return decl(tokens, pos);
             }

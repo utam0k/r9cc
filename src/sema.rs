@@ -60,6 +60,16 @@ impl Env {
     }
 }
 
+fn into_new_range<T: Sized>(param: T, f: Box<Fn(T) -> T>) -> T {
+    let env = ENV.lock().unwrap().clone();
+    *ENV.lock().unwrap() = Env::new(Some(Box::new(env)));
+    let ret = f(param);
+    // Rollback
+    let env = ENV.lock().unwrap().clone();
+    *ENV.lock().unwrap() = *env.next.unwrap();
+    return ret;
+}
+
 fn find_var(name: &String) -> Option<Var> {
     let env = ENV.lock().unwrap().clone();
     let mut next: &Option<Box<Env>> = &Some(Box::new(env));
@@ -105,6 +115,9 @@ fn walk(mut node: Node, decay: bool) -> Node {
     match op {
         Num(_) | Null => (),
         Str(data, len) => {
+            // Quoted from 9cc
+            // > A string literal is converted to a reference to an anonymous
+            // > global variable of type char array.
             let name = format!(".L.str{}", *STRLABEL.lock().unwrap());
             *STRLABEL.lock().unwrap() += 1;
             let var = Var::new_global(node.ty.clone(), name, data, len, false);
@@ -168,11 +181,20 @@ fn walk(mut node: Node, decay: bool) -> Node {
             node.op = Ternary(cond, then, els);
         }
         For(init, cond, inc, body) => {
+            let f = |(init, cond, inc, body)| -> (Node, Node, Node, Node) {
+                (
+                    walk(init, true),
+                    walk(cond, true),
+                    walk(inc, true),
+                    walk(body, true),
+                )
+            };
+            let (init, cond, inc, body) = into_new_range((*init, *cond, *inc, *body), Box::new(f));
             node.op = For(
-                Box::new(walk(*init, true)),
-                Box::new(walk(*cond, true)),
-                Box::new(walk(*inc, true)),
-                Box::new(walk(*body, true)),
+                Box::new(init),
+                Box::new(cond),
+                Box::new(inc),
+                Box::new(body),
             );
         }
         DoWhile(body, cond) => {
@@ -300,12 +322,10 @@ fn walk(mut node: Node, decay: bool) -> Node {
             node.op = Func(name, args, Box::new(walk(*body, true)), stacksize);
         }
         CompStmt(mut stmts) => {
-            let env = ENV.lock().unwrap().clone();
-            *ENV.lock().unwrap() = Env::new(Some(Box::new(env)));
-            stmts = stmts.into_iter().map(|stmt| walk(stmt, true)).collect();
-            let env = ENV.lock().unwrap().clone();
-            // Rollback
-            *ENV.lock().unwrap() = *env.next.unwrap();
+            let f = |stmts: Vec<Node>| -> Vec<Node> {
+                stmts.into_iter().map(|stmt| walk(stmt, true)).collect()
+            };
+            stmts = into_new_range(stmts, Box::new(f));
             node.op = CompStmt(stmts);
         }
         VecStmt(mut stmts) => {

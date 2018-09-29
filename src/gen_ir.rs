@@ -19,8 +19,10 @@ use std::sync::Mutex;
 lazy_static!{
     static ref NREG: Mutex<usize> = Mutex::new(0);
     static ref NLABEL: Mutex<usize> = Mutex::new(1);
+
     static ref RETURN_LABEL: Mutex<usize> = Mutex::new(0);
     static ref RETURN_REG: Mutex<usize> = Mutex::new(0);
+    static ref BREAK_LABEL: Mutex<usize> = Mutex::new(0);
     static ref CODE: Mutex<Vec<IR>> = Mutex::new(vec![]);
 }
 
@@ -458,6 +460,9 @@ fn gen_stmt(node: Node) {
             *NLABEL.lock().unwrap() += 1;
             let y = Some(*NLABEL.lock().unwrap());
             *NLABEL.lock().unwrap() += 1;
+            let orig = *BREAK_LABEL.lock().unwrap();
+            *BREAK_LABEL.lock().unwrap() = *NLABEL.lock().unwrap();
+            *NLABEL.lock().unwrap() += 1;
 
             gen_stmt(*init);
             label(x);
@@ -468,15 +473,29 @@ fn gen_stmt(node: Node) {
             gen_stmt(*inc);
             add(IROp::Jmp, x, None);
             label(y);
+            label(Some(*BREAK_LABEL.lock().unwrap()));
+            *BREAK_LABEL.lock().unwrap() = orig;
         }
         NodeType::DoWhile(body, cond) => {
             let x = Some(*NLABEL.lock().unwrap());
+            *NLABEL.lock().unwrap() += 1;
+            let orig = *BREAK_LABEL.lock().unwrap();
+            *BREAK_LABEL.lock().unwrap() = *NLABEL.lock().unwrap();
             *NLABEL.lock().unwrap() += 1;
             label(x);
             gen_stmt(*body);
             let r = gen_expr(cond);
             add(IROp::If, r, x);
             kill(r);
+            label(Some(*BREAK_LABEL.lock().unwrap()));
+            *BREAK_LABEL.lock().unwrap() = orig;
+        }
+        NodeType::Break => {
+            let break_label = *BREAK_LABEL.lock().unwrap();
+            if break_label == 0 {
+                panic!("stray 'break' statement");
+            }
+            add(IROp::Jmp, Some(break_label), None);
         }
         NodeType::Return(expr) => {
             let r = gen_expr(expr);

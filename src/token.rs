@@ -33,6 +33,7 @@ pub enum TokenType {
     For, // "for"
     Do, // "do"
     While, // "while"
+    Break, // "break"
     EQ, // ==
     NE, // !=
     LE, // <=
@@ -106,6 +107,7 @@ impl Symbol {
 lazy_static! {
     static ref SYMBOLS: Vec<Symbol> = [
         Symbol::new("_Alignof" , TokenType::Alignof),
+        Symbol::new("break" , TokenType::Break),
         Symbol::new("char" , TokenType::Char),
         Symbol::new("void" , TokenType::Void),
         Symbol::new("do" , TokenType::Do),

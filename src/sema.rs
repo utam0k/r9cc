@@ -39,10 +39,10 @@ fn swap(p: &mut Box<Node>, q: &mut Box<Node>) {
 }
 
 lazy_static!{
-    static ref STRLABEL: Mutex<usize> = Mutex::new(0);
     static ref GLOBALS: Mutex<Vec<Var>> = Mutex::new(vec![]);
-    static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
     static ref ENV: Mutex<Env> = Mutex::new(Env::new(None));
+    static ref STRLABEL: Mutex<usize> = Mutex::new(0);
+    static ref STACKSIZE: Mutex<usize> = Mutex::new(0);
 }
 
 #[derive(Debug, Clone)]
@@ -113,7 +113,7 @@ fn walk(mut node: Node, decay: bool) -> Node {
     use self::NodeType::*;
     let op = node.op.clone();
     match op {
-        Num(_) | Null => (),
+        Num(_) | Null | Break => (),
         Str(data, len) => {
             // Quoted from 9cc
             // > A string literal is converted to a reference to an anonymous

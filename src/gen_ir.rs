@@ -466,11 +466,15 @@ fn gen_stmt(node: Node) {
 
             gen_stmt(*init);
             label(x);
-            let r2 = gen_expr(cond);
-            add(IROp::Unless, r2, y);
-            kill(r2);
+            if !cond.is_null() {
+                let r2 = gen_expr(cond);
+                add(IROp::Unless, r2, y);
+                kill(r2);
+            }
             gen_stmt(*body);
-            gen_stmt(*inc);
+            if !inc.is_null() {
+                gen_stmt(*inc);
+            }
             add(IROp::Jmp, x, None);
             label(y);
             label(Some(*BREAK_LABEL.lock().unwrap()));

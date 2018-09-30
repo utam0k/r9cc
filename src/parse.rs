@@ -74,6 +74,13 @@ impl Node {
     pub fn new_binop(ty: TokenType, lhs: Node, rhs: Node) -> Self {
         Node::new(NodeType::BinOp(ty, Box::new(lhs), Box::new(rhs)))
     }
+
+    pub fn is_null(&self) -> bool {
+        match self.op {
+            NodeType::Null => true,
+            _ => false,
+        }
+    }
 }
 
 macro_rules! new_expr(
@@ -668,15 +675,31 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         }
         TokenType::For => {
             expect(TokenType::LeftParen, tokens, pos);
+
             let init: Box<Node> = if is_typename(&tokens[*pos]) {
                 Box::new(decl(tokens, pos))
+            } else if consume(TokenType::Semicolon, tokens, pos) {
+                Box::new(Node::new(NodeType::Null))
             } else {
                 Box::new(expr_stmt(tokens, pos))
             };
-            let cond = Box::new(expr(&tokens, pos));
-            expect(TokenType::Semicolon, tokens, pos);
-            let inc = Box::new(new_expr!(NodeType::ExprStmt, expr(&tokens, pos)));
-            expect(TokenType::RightParen, tokens, pos);
+
+            let cond;
+            if !consume(TokenType::Semicolon, tokens, pos) {
+                cond = Box::new(expr(&tokens, pos));
+                expect(TokenType::Semicolon, tokens, pos);
+            } else {
+                cond = Box::new(Node::new(NodeType::Null))
+            }
+
+            let inc;
+            if !consume(TokenType::RightParen, tokens, pos) {
+                inc = Box::new(new_expr!(NodeType::ExprStmt, expr(&tokens, pos)));
+                expect(TokenType::RightParen, tokens, pos);
+            } else {
+                inc = Box::new(Node::new(NodeType::Null))
+            }
+
             let body = Box::new(stmt(&tokens, pos));
             Node::new(NodeType::For(init, cond, inc, body))
         }

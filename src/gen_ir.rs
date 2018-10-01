@@ -225,12 +225,23 @@ fn gen_binop(ty: IROp, lhs: Box<Node>, rhs: Box<Node>) -> Option<usize> {
     return r1;
 }
 
+fn get_inc_scale(ty: &Type) -> usize {
+    match ty.ty {
+        Ctype::Ptr(ref ptr_to) => ptr_to.size,
+        _ => 1,
+    }
+}
+
 fn gen_pre_inc(ty: &Type, expr: Box<Node>, num: i32) -> i32 {
     let addr = gen_lval(expr);
     let val = *NREG.lock().unwrap();
     *NREG.lock().unwrap() += 1;
     add(load_insn(ty), Some(val), addr);
-    add(IROp::AddImm, Some(val), Some(num as usize));
+    add(
+        IROp::AddImm,
+        Some(val),
+        Some(num as usize * get_inc_scale(ty)),
+    );
     add(store_insn(ty), addr, Some(val));
     kill(addr);
     return val as i32;
@@ -238,7 +249,11 @@ fn gen_pre_inc(ty: &Type, expr: Box<Node>, num: i32) -> i32 {
 
 fn gen_post_inc(ty: &Type, expr: Box<Node>, num: i32) -> i32 {
     let val = gen_pre_inc(ty, expr, num);
-    add(IROp::SubImm, Some(val as usize), Some(num as usize));
+    add(
+        IROp::SubImm,
+        Some(val as usize),
+        Some(num as usize * get_inc_scale(ty)),
+    );
     return val as i32;
 }
 

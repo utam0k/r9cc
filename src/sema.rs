@@ -266,26 +266,32 @@ fn walk(mut node: Node, decay: bool) -> Node {
         }
         PreInc(mut expr) => {
             expr = Box::new(walk(*expr, true));
+            node.ty = expr.ty.clone();
             node.op = PreInc(expr);
         }
         PreDec(mut expr) => {
             expr = Box::new(walk(*expr, true));
+            node.ty = expr.ty.clone();
             node.op = PreDec(expr);
         }
         PostInc(mut expr) => {
             expr = Box::new(walk(*expr, true));
+            node.ty = expr.ty.clone();
             node.op = PostInc(expr);
         }
         PostDec(mut expr) => {
             expr = Box::new(walk(*expr, true));
+            node.ty = expr.ty.clone();
             node.op = PostDec(expr);
         }
         Neg(mut expr) => {
             expr = Box::new(walk(*expr, true));
+            node.ty = expr.ty.clone();
             node.op = Neg(expr);
         }
         Exclamation(mut expr) => {
             expr = Box::new(walk(*expr, true));
+            node.ty = expr.ty.clone();
             node.op = Exclamation(expr);
         }
         Addr(mut expr) => {

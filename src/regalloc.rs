@@ -39,6 +39,10 @@ fn reg_map_set(i: usize, val: usize) {
 }
 
 fn alloc(ir_reg: usize) -> usize {
+    if REG_MAP.lock().unwrap().len() <= ir_reg {
+        panic!("program too big");
+    }
+
     if let Some(r) = reg_map_get(ir_reg) {
         assert!(used_get(r));
         return r;

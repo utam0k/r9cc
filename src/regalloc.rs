@@ -68,7 +68,7 @@ fn visit(irv: &mut Vec<IR>) {
 
         match info.ty {
             Reg | RegImm | RegLabel | LabelAddr => ir.lhs = Some(alloc(ir.lhs.unwrap())),
-            RegReg => {
+            Mem | RegReg => {
                 ir.lhs = Some(alloc(ir.lhs.unwrap()));
                 ir.rhs = Some(alloc(ir.rhs.unwrap()));
             }

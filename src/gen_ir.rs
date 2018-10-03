@@ -28,7 +28,7 @@ lazy_static!{
 
 fn add(op: IROp, lhs: Option<usize>, rhs: Option<usize>) {
     let ir = IR::new(op, lhs, rhs);
-    CODE.lock().unwrap().push(ir)
+    CODE.lock().unwrap().push(ir.clone());
 }
 
 #[derive(Clone, Debug)]
@@ -36,6 +36,7 @@ pub enum IRType {
     Noarg,
     Reg,
     Imm,
+    Mem,
     Jmp,
     Label,
     LabelAddr,
@@ -93,9 +94,7 @@ pub enum IROp {
     Jmp,
     If,
     Unless,
-    Load8,
-    Load32,
-    Load64,
+    Load(u8),
     Store8,
     Store32,
     Store64,
@@ -163,9 +162,8 @@ fn choose_insn(ty: &Type, op8: IROp, op32: IROp, op64: IROp) -> IROp {
     }
 }
 
-fn load_insn(ty: &Type) -> IROp {
-    use self::IROp::*;
-    choose_insn(ty, Load8, Load32, Load64)
+fn load(ty: &Type, dst: Option<usize>, src: Option<usize>) {
+    add(IROp::Load(ty.size as u8), dst, src);
 }
 
 fn store_insn(ty: &Type) -> IROp {
@@ -240,7 +238,7 @@ fn gen_pre_inc(ty: &Type, expr: Box<Node>, num: i32) -> i32 {
     let addr = gen_lval(expr);
     let val = *NREG.lock().unwrap();
     *NREG.lock().unwrap() += 1;
-    add(load_insn(ty), Some(val), addr);
+    load(ty, Some(val), addr);
     add(
         IROp::AddImm,
         Some(val),
@@ -273,9 +271,8 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
         NodeType::Lvar(_) |
         NodeType::Dot(_, _, _) |
         NodeType::Gvar(_, _, _) => {
-            let op = load_insn(&node.ty);
-            let r = gen_lval(Box::new(node));
-            add(op, r, r);
+            let r = gen_lval(Box::new(node.clone()));
+            load(&node.ty, r, r);
             return r;
         }
         NodeType::Call(name, args) => {
@@ -296,9 +293,8 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
         }
         NodeType::Addr(expr) => gen_lval(expr),
         NodeType::Deref(expr) => {
-            let op = load_insn(&node.ty);
             let r = gen_expr(expr);
-            add(op, r, r);
+            load(&node.ty, r, r);
             return r;
         }
         NodeType::StmtExpr(body) => {

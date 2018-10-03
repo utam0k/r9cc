@@ -59,6 +59,15 @@ fn emit_cmp(ir: IR, insn: &'static str) {
     emit!("movzb {}, {}", REGS[lhs], REGS8[lhs]);
 }
 
+fn reg(r: usize, size: u8) -> &'static str {
+    match size {
+        1 => REGS8[r],
+        4 => REGS32[r],
+        8 => REGS[r],
+        _ => unreachable!(),
+    }
+}
+
 fn gen(f: Function) {
     use self::IROp::*;
     let ret = format!(".Lend{}", *LABEL.lock().unwrap());
@@ -135,12 +144,12 @@ fn gen(f: Function) {
                 emit!("cmp {}, 0", REGS[lhs]);
                 emit!("je .L{}", rhs);
             }
-            Load8 => {
-                emit!("mov {}, [{}]", REGS8[lhs], REGS[rhs]);
-                emit!("movzb {}, {}", REGS[lhs], REGS8[lhs]);
+            Load(size) => {
+                emit!("mov {}, [{}]", reg(lhs, size), REGS[rhs]);
+                if size == 1 {
+                    emit!("movzb {}, {}", REGS[lhs], REGS8[lhs]);
+                }
             }
-            Load32 => emit!("mov {}, [{}]", REGS32[lhs], REGS[rhs]),
-            Load64 => emit!("mov {}, [{}]", REGS[lhs], REGS[rhs]),
             Store8 => emit!("mov [{}], {}", REGS[lhs], REGS8[rhs]),
             Store32 => emit!("mov [{}], {}", REGS[lhs], REGS32[rhs]),
             Store64 => emit!("mov [{}], {}", REGS[lhs], REGS[rhs]),

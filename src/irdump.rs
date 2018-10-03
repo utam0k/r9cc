@@ -38,9 +38,7 @@ impl<'a> From<&'a IROp> for IRInfo {
             SHR => IRInfo::new("SHR", IRType::RegReg),
             Mod => IRInfo::new("MOD", IRType::RegReg),
             Neg => IRInfo::new("NEG", IRType::Reg),
-            Load8 => IRInfo::new("LOAD8", IRType::RegReg),
-            Load32 => IRInfo::new("LOAD32", IRType::RegReg),
-            Load64 => IRInfo::new("LOAD64", IRType::RegReg),
+            Load(_) => IRInfo::new("LOAD8", IRType::RegReg),
             Mov => IRInfo::new("MOV", IRType::RegReg),
             Mul => IRInfo::new("MUL", IRType::RegReg),
             MulImm => IRInfo::new("MUL", IRType::RegImm),
@@ -81,6 +79,14 @@ impl fmt::Display for IR {
             Reg => write!(f, "  {} r{}", info.name, lhs),
             Jmp => write!(f, "  {} .L{}", info.name, lhs),
             RegReg => write!(f, "  {} r{}, r{}", info.name, lhs, self.rhs.unwrap()),
+            Mem => {
+                match self.op {
+                    IROp::Load(ref size) => {
+                        write!(f, "  {}{} r{}, {}", info.name, size, lhs, self.rhs.unwrap())
+                    }
+                    _ => unreachable!(),
+                }
+            }
             RegImm => write!(f, "  {} r{}, {}", info.name, lhs, self.rhs.unwrap() as i32),
             ImmImm => write!(f, "  {} {}, {}", info.name, lhs, self.rhs.unwrap()),
             RegLabel => write!(f, "  {} r{}, .L{}", info.name, lhs, self.rhs.unwrap()),

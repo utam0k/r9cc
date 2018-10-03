@@ -158,9 +158,14 @@ fn gen(f: Function) {
                 emit!("mov {}, rax", REGS[lhs]);
             }
             MulImm => {
-                emit!("mov rax, {}", rhs as i32);
-                emit!("mul {}", REGS[lhs]);
-                emit!("mov {}, rax", REGS[lhs]);
+                if rhs < 256 && rhs.count_ones() == 1 {
+                    use std::intrinsics::cttz;
+                    emit!("shl {}, {}", REGS[lhs], unsafe { cttz(rhs) });
+                } else {
+                    emit!("mov rax, {}", rhs as i32);
+                    emit!("mul {}", REGS[lhs]);
+                    emit!("mov {}, rax", REGS[lhs]);
+                }
             }
             Div => {
                 emit!("mov rax, {}", REGS[lhs]);

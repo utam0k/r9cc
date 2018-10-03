@@ -1,3 +1,5 @@
+#![feature(core_intrinsics)]
+
 pub mod gen_x86;
 pub mod gen_ir;
 pub mod irdump;

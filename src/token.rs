@@ -240,7 +240,7 @@ fn read_char(p: &Vec<char>, pos: &mut usize) -> char {
         *pos += 1;
         return result;
     } else {
-        panic!("PREMATURE end of input");
+        panic!("premature end of input");
     }
 }
 
@@ -299,14 +299,16 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
         if p.get(pos..pos + 2) == Some(&['/', '*']) {
             pos += 2;
             loop {
-                if let Some(&['*', '/']) = p.get(pos..pos + 2) {
-                    pos += 2;
-                    break;
+                if let Some(two_char) = p.get(pos..pos + 2) {
+                    pos += 1;
+                    if two_char == &['*', '/'] {
+                        pos += 1;
+                        continue 'outer;
+                    }
                 } else {
-                    panic!("premature end of input");
+                    panic!("unclosed comment");
                 }
             }
-            continue;
         }
 
         // Character literal

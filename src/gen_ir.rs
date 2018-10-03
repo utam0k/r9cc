@@ -150,6 +150,10 @@ fn label(x: Option<usize>) {
     add(IROp::Label, x, None);
 }
 
+fn jmp(x: Option<usize>) {
+    add(IROp::Jmp, x, None);
+}
+
 fn choose_insn(ty: &Type, op8: IROp, op32: IROp, op64: IROp) -> IROp {
     match ty.size {
         1 => op8,
@@ -359,7 +363,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                     let r1 = gen_expr(lhs);
                     add(IROp::Unless, r1, x);
                     add(IROp::Imm, r1, Some(1));
-                    add(IROp::Jmp, y, None);
+                    jmp(y);
                     label(x);
 
                     let r2 = gen_expr(rhs);
@@ -408,7 +412,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
             let r2 = gen_expr(then);
             add(IROp::Mov, r, r2);
             kill(r2);
-            add(IROp::Jmp, y, None);
+            jmp(y);
 
             label(x);
             let r3 = gen_expr(els);
@@ -455,7 +459,7 @@ fn gen_stmt(node: Node) {
                 add(IROp::Unless, r, x);
                 kill(r);
                 gen_stmt(*then.clone());
-                add(IROp::Jmp, y, None);
+                jmp(y);
                 label(x);
                 gen_stmt(*els);
                 label(y);
@@ -490,7 +494,7 @@ fn gen_stmt(node: Node) {
             if !inc.is_null() {
                 gen_stmt(*inc);
             }
-            add(IROp::Jmp, x, None);
+            jmp(x);
             label(y);
             label(Some(*BREAK_LABEL.lock().unwrap()));
             *BREAK_LABEL.lock().unwrap() = orig;
@@ -514,7 +518,7 @@ fn gen_stmt(node: Node) {
             if break_label == 0 {
                 panic!("stray 'break' statement");
             }
-            add(IROp::Jmp, Some(break_label), None);
+            jmp(Some(break_label));
         }
         NodeType::Return(expr) => {
             let r = gen_expr(expr);
@@ -523,7 +527,7 @@ fn gen_stmt(node: Node) {
             if *RETURN_LABEL.lock().unwrap() != 0 {
                 add(IROp::Mov, Some(*RETURN_REG.lock().unwrap()), r);
                 kill(r);
-                add(IROp::Jmp, Some(*RETURN_LABEL.lock().unwrap()), None);
+                jmp(Some(*RETURN_LABEL.lock().unwrap()));
                 return;
             }
 

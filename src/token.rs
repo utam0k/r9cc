@@ -1,4 +1,5 @@
 use std::sync::Mutex;
+use std::collections::HashMap;
 
 use FILE_NAME;
 
@@ -106,21 +107,6 @@ impl Symbol {
 
 lazy_static! {
     static ref SYMBOLS: Vec<Symbol> = [
-        Symbol::new("_Alignof" , TokenType::Alignof),
-        Symbol::new("break" , TokenType::Break),
-        Symbol::new("char" , TokenType::Char),
-        Symbol::new("void" , TokenType::Void),
-        Symbol::new("do" , TokenType::Do),
-        Symbol::new("else" , TokenType::Else),
-        Symbol::new("extern" , TokenType::Extern),
-        Symbol::new("for" , TokenType::For),
-        Symbol::new("if" , TokenType::If),
-        Symbol::new("int" , TokenType::Int),
-        Symbol::new("return" , TokenType::Return),
-        Symbol::new("sizeof" , TokenType::Sizeof),
-        Symbol::new("struct" , TokenType::Struct),
-        Symbol::new("typedef" , TokenType::Typedef),
-        Symbol::new("while" , TokenType::While),
         Symbol::new("!=", TokenType::NE),
         Symbol::new("&&", TokenType::Logand),
         Symbol::new("++", TokenType::Inc),
@@ -273,10 +259,31 @@ fn read_string(p: &Vec<char>, pos: usize) -> (String, usize) {
     }
 }
 
+fn keyword_map() -> HashMap<String, TokenType> {
+    let mut map = HashMap::new();
+    map.insert("_Alignof".into(), TokenType::Alignof);
+    map.insert("break".into(), TokenType::Break);
+    map.insert("char".into(), TokenType::Char);
+    map.insert("void".into(), TokenType::Void);
+    map.insert("do".into(), TokenType::Do);
+    map.insert("else".into(), TokenType::Else);
+    map.insert("extern".into(), TokenType::Extern);
+    map.insert("for".into(), TokenType::For);
+    map.insert("if".into(), TokenType::If);
+    map.insert("int".into(), TokenType::Int);
+    map.insert("return".into(), TokenType::Return);
+    map.insert("sizeof".into(), TokenType::Sizeof);
+    map.insert("struct".into(), TokenType::Struct);
+    map.insert("typedef".into(), TokenType::Typedef);
+    map.insert("while".into(), TokenType::While);
+    map
+}
+
+// Tokenized input is stored to this vec.
 pub fn tokenize(p: Vec<char>) -> Vec<Token> {
     *INPUT_FILE.lock().unwrap() = p.clone();
-    // Tokenized input is stored to this vec.
     let mut tokens: Vec<Token> = vec![];
+    let keywords = keyword_map();
 
     let mut pos = 0;
 
@@ -334,7 +341,7 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
             continue;
         }
 
-        // Multi-letter symbol or keyword
+        // Multi-letter symbol
         for symbol in SYMBOLS.iter() {
             let name = symbol.name;
             let len = name.len();
@@ -352,7 +359,7 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
             continue 'outer;
         }
 
-        // Single-letter token
+        // Single-letter symbol
         if let Some(ty) = TokenType::new_single_letter(c) {
             let token = Token::new(ty, pos);
             pos += 1;
@@ -360,7 +367,7 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
             continue;
         };
 
-        // Identifier
+        // Keyword or identifier
         if c.is_alphabetic() || c == &'_' {
             let mut len = 1;
             while let Some(c2) = p.get(pos + len) {
@@ -371,9 +378,14 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
                 break;
             }
 
-            let name = &p[pos..pos + len];
+            let name: String = p[pos..pos + len].into_iter().collect();
             pos += len;
-            let token = Token::new(TokenType::Ident(name.into_iter().collect()), pos - len);
+            let token;
+            if let Some(keyword) = keywords.get(&name) {
+                token = Token::new(keyword.clone(), pos - len);
+            } else {
+                token = Token::new(TokenType::Ident(name.clone()), pos - len);
+            }
             tokens.push(token);
             continue;
         }

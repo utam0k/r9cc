@@ -150,9 +150,7 @@ fn gen(f: Function) {
                     emit!("movzb {}, {}", REGS[lhs], REGS8[lhs]);
                 }
             }
-            Store8 => emit!("mov [{}], {}", REGS[lhs], REGS8[rhs]),
-            Store32 => emit!("mov [{}], {}", REGS[lhs], REGS32[rhs]),
-            Store64 => emit!("mov [{}], {}", REGS[lhs], REGS[rhs]),
+            Store(size) => emit!("mov [{}], {}", REGS[lhs], reg(rhs, size)),
             Store8Arg => emit!("mov [rbp-{}], {}", lhs, ARGREG8[rhs]),
             Store32Arg => emit!("mov [rbp-{}], {}", lhs, ARGREG32[rhs]),
             Store64Arg => emit!("mov [rbp-{}], {}", lhs, ARGREG64[rhs]),

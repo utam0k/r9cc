@@ -38,15 +38,13 @@ impl<'a> From<&'a IROp> for IRInfo {
             SHR => IRInfo::new("SHR", IRType::RegReg),
             Mod => IRInfo::new("MOD", IRType::RegReg),
             Neg => IRInfo::new("NEG", IRType::Reg),
-            Load(_) => IRInfo::new("LOAD8", IRType::RegReg),
+            Load(_) => IRInfo::new("LOAD8", IRType::Mem),
             Mov => IRInfo::new("MOV", IRType::RegReg),
             Mul => IRInfo::new("MUL", IRType::RegReg),
             MulImm => IRInfo::new("MUL", IRType::RegImm),
             Nop => IRInfo::new("NOP", IRType::Noarg),
             Return => IRInfo::new("RET", IRType::Reg),
-            Store8 => IRInfo::new("STORE8", IRType::RegReg),
-            Store32 => IRInfo::new("STORE32", IRType::RegReg),
-            Store64 => IRInfo::new("STORE64", IRType::RegReg),
+            Store(_) => IRInfo::new("STORE", IRType::Mem),
             Store8Arg => IRInfo::new("STORE8_ARG", IRType::ImmImm),
             Store32Arg => IRInfo::new("STORE32_ARG", IRType::ImmImm),
             Store64Arg => IRInfo::new("STORE64_ARG", IRType::ImmImm),
@@ -81,7 +79,8 @@ impl fmt::Display for IR {
             RegReg => write!(f, "  {} r{}, r{}", info.name, lhs, self.rhs.unwrap()),
             Mem => {
                 match self.op {
-                    IROp::Load(ref size) => {
+                    IROp::Load(ref size) |
+                    IROp::Store(ref size) => {
                         write!(f, "  {}{} r{}, {}", info.name, size, lhs, self.rhs.unwrap())
                     }
                     _ => unreachable!(),

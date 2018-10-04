@@ -95,9 +95,7 @@ pub enum IROp {
     If,
     Unless,
     Load(u8),
-    Store8,
-    Store32,
-    Store64,
+    Store(u8),
     Store8Arg,
     Store32Arg,
     Store64Arg,
@@ -166,9 +164,8 @@ fn load(ty: &Type, dst: Option<usize>, src: Option<usize>) {
     add(IROp::Load(ty.size as u8), dst, src);
 }
 
-fn store_insn(ty: &Type) -> IROp {
-    use self::IROp::*;
-    choose_insn(ty, Store8, Store32, Store64)
+fn store(ty: &Type, dst: Option<usize>, src: Option<usize>) {
+    add(IROp::Store(ty.size as u8), dst, src);
 }
 
 fn store_arg_insn(ty: &Type) -> IROp {
@@ -244,7 +241,7 @@ fn gen_pre_inc(ty: &Type, expr: Box<Node>, num: i32) -> i32 {
         Some(val),
         Some(num as usize * get_inc_scale(ty)),
     );
-    add(store_insn(ty), addr, Some(val));
+    store(ty, addr, Some(val));
     kill(addr);
     return val as i32;
 }
@@ -318,7 +315,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                 TokenType::Equal => {
                     let rhs = gen_expr(rhs);
                     let lhs = gen_lval(lhs);
-                    add(store_insn(&node.ty), lhs, rhs);
+                    store(&node.ty, lhs, rhs);
                     kill(rhs);
                     return lhs;
                 }
@@ -439,7 +436,7 @@ fn gen_stmt(node: Node) {
                 let lhs = Some(*NREG.lock().unwrap());
                 *NREG.lock().unwrap() += 1;
                 add(IROp::Bprel, lhs, Some(offset));
-                add(store_insn(&node.ty), lhs, rhs);
+                store(&node.ty, lhs, rhs);
                 kill(lhs);
                 kill(rhs);
             }

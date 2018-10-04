@@ -68,6 +68,15 @@ fn reg(r: usize, size: u8) -> &'static str {
     }
 }
 
+fn argreg(r: usize, size: u8) -> &'static str {
+    match size {
+        1 => ARGREG8[r],
+        4 => ARGREG32[r],
+        8 => ARGREG64[r],
+        _ => unreachable!(),
+    }
+}
+
 fn gen(f: Function) {
     use self::IROp::*;
     let ret = format!(".Lend{}", *LABEL.lock().unwrap());
@@ -151,9 +160,7 @@ fn gen(f: Function) {
                 }
             }
             Store(size) => emit!("mov [{}], {}", REGS[lhs], reg(rhs, size)),
-            Store8Arg => emit!("mov [rbp-{}], {}", lhs, ARGREG8[rhs]),
-            Store32Arg => emit!("mov [rbp-{}], {}", lhs, ARGREG32[rhs]),
-            Store64Arg => emit!("mov [rbp-{}], {}", lhs, ARGREG64[rhs]),
+            StoreArg(size) => emit!("mov [rbp-{}], {}", lhs, argreg(rhs, size)),
             Add => emit!("add {}, {}", REGS[lhs], REGS[rhs]),
             AddImm => emit!("add {}, {}", REGS[lhs], rhs as i32),
             Sub => emit!("sub {}, {}", REGS[lhs], REGS[rhs]),

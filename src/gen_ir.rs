@@ -42,7 +42,7 @@ pub enum IRType {
     LabelAddr,
     RegReg,
     RegImm,
-    ImmImm,
+    StoreArg,
     RegLabel,
     Call,
 }
@@ -96,9 +96,7 @@ pub enum IROp {
     Unless,
     Load(u8),
     Store(u8),
-    Store8Arg,
-    Store32Arg,
-    Store64Arg,
+    StoreArg(u8),
     Kill,
     Nop,
 }
@@ -151,15 +149,6 @@ fn jmp(x: Option<usize>) {
     add(IROp::Jmp, x, None);
 }
 
-fn choose_insn(ty: &Type, op8: IROp, op32: IROp, op64: IROp) -> IROp {
-    match ty.size {
-        1 => op8,
-        4 => op32,
-        8 => op64,
-        _ => unreachable!(),
-    }
-}
-
 fn load(ty: &Type, dst: Option<usize>, src: Option<usize>) {
     add(IROp::Load(ty.size as u8), dst, src);
 }
@@ -168,9 +157,8 @@ fn store(ty: &Type, dst: Option<usize>, src: Option<usize>) {
     add(IROp::Store(ty.size as u8), dst, src);
 }
 
-fn store_arg_insn(ty: &Type) -> IROp {
-    use self::IROp::*;
-    choose_insn(ty, Store8Arg, Store32Arg, Store64Arg)
+fn store_arg(ty: &Type, bpoff: Option<usize>, argreg: Option<usize>) {
+    add(IROp::StoreArg(ty.size as u8), bpoff, argreg);
 }
 
 // Quoted from 9cc
@@ -551,9 +539,8 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
 
                 for i in 0..args.len() {
                     let arg = &args[i];
-                    let op = store_arg_insn(&arg.ty);
                     if let NodeType::Vardef(_, _, Scope::Local(offset)) = arg.op {
-                        add(op, Some(offset), Some(i));
+                        store_arg(&arg.ty, Some(offset), Some(i));
                     } else {
                         unreachable!();
                     }

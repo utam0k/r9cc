@@ -45,9 +45,7 @@ impl<'a> From<&'a IROp> for IRInfo {
             Nop => IRInfo::new("NOP", IRType::Noarg),
             Return => IRInfo::new("RET", IRType::Reg),
             Store(_) => IRInfo::new("STORE", IRType::Mem),
-            Store8Arg => IRInfo::new("STORE8_ARG", IRType::ImmImm),
-            Store32Arg => IRInfo::new("STORE32_ARG", IRType::ImmImm),
-            Store64Arg => IRInfo::new("STORE64_ARG", IRType::ImmImm),
+            StoreArg(_) => IRInfo::new("STORE_ARG", IRType::StoreArg),
             Sub => IRInfo::new("SUB", IRType::RegReg),
             SubImm => IRInfo::new("SUB", IRType::RegImm),
             Bprel => IRInfo::new("BPREL", IRType::RegImm),
@@ -77,17 +75,19 @@ impl fmt::Display for IR {
             Reg => write!(f, "  {} r{}", info.name, lhs),
             Jmp => write!(f, "  {} .L{}", info.name, lhs),
             RegReg => write!(f, "  {} r{}, r{}", info.name, lhs, self.rhs.unwrap()),
-            Mem => {
+            Mem | StoreArg => {
                 match self.op {
                     IROp::Load(ref size) |
                     IROp::Store(ref size) => {
                         write!(f, "  {}{} r{}, {}", info.name, size, lhs, self.rhs.unwrap())
                     }
+                    IROp::StoreArg(ref size) => {
+                        write!(f, "  {}{} {}, {}", info.name, size, lhs, self.rhs.unwrap())
+                    }
                     _ => unreachable!(),
                 }
             }
             RegImm => write!(f, "  {} r{}, {}", info.name, lhs, self.rhs.unwrap() as i32),
-            ImmImm => write!(f, "  {} {}, {}", info.name, lhs, self.rhs.unwrap()),
             RegLabel => write!(f, "  {} r{}, .L{}", info.name, lhs, self.rhs.unwrap()),
             Call => {
                 match self.op {

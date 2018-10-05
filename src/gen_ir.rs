@@ -336,8 +336,8 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                     let rhs = gen_expr(rhs);
                     let lhs = gen_lval(lhs);
                     store(&node.ty, lhs, rhs);
-                    kill(rhs);
-                    return lhs;
+                    kill(lhs);
+                    return rhs;
                 }
                 Plus | Minus => {
                     let insn = IROp::from(op);
@@ -367,7 +367,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                     label(x);
                     return r1;
                 }
-                TokenType::Logor => {
+                Logor => {
                     let x = Some(*NLABEL.lock().unwrap());
                     *NLABEL.lock().unwrap() += 1;
                     let y = Some(*NLABEL.lock().unwrap());

@@ -542,7 +542,7 @@ fn assign(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let lhs = conditional(tokens, pos);
     if let Some(op) = assign_op(&tokens[*pos].ty) {
         *pos += 1;
-        Node::new_binop(op.clone(), lhs, conditional(tokens, pos))
+        Node::new_binop(op.clone(), lhs, assign(tokens, pos))
     } else {
         lhs
     }

@@ -235,8 +235,9 @@ fn walk(mut node: Node, decay: bool) -> Node {
             return maybe_decay(node, decay);
         }
         BinOp(token_type, mut lhs, mut rhs) => {
+            use self::TokenType::*;
             match token_type {
-                TokenType::Plus | TokenType::Minus => {
+                Plus | Minus => {
                     lhs = Box::new(walk(*lhs, true));
                     rhs = Box::new(walk(*rhs, true));
 
@@ -250,7 +251,8 @@ fn walk(mut node: Node, decay: bool) -> Node {
                     node.op = BinOp(token_type, lhs.clone(), rhs);
                     node.ty = lhs.ty;
                 }
-                TokenType::Equal => {
+                Equal | MulEQ | DivEQ | ModEQ | AddEQ | SubEQ | ShlEQ | ShrEQ | BitandEQ |
+                XorEQ | BitorEQ => {
                     lhs = Box::new(walk(*lhs, false));
                     check_lval(&*lhs);
                     node.op = BinOp(token_type, lhs.clone(), Box::new(walk(*rhs, true)));

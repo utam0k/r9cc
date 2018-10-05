@@ -529,12 +529,23 @@ fn conditional(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     ))
 }
 
+fn assign_op(ty: &TokenType) -> Option<&TokenType> {
+    use self::TokenType::*;
+    match ty {
+        Equal | MulEQ | DivEQ | ModEQ | AddEQ | SubEQ | ShlEQ | ShrEQ | BitandEQ | XorEQ |
+        BitorEQ => Some(ty),
+        _ => None,
+    }
+}
+
 fn assign(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let lhs = conditional(tokens, pos);
-    if !consume(TokenType::Equal, tokens, pos) {
-        return lhs;
+    if let Some(op) = assign_op(&tokens[*pos].ty) {
+        *pos += 1;
+        Node::new_binop(op.clone(), lhs, conditional(tokens, pos))
+    } else {
+        lhs
     }
-    return Node::new_binop(TokenType::Equal, lhs, conditional(tokens, pos));
 }
 
 fn expr(tokens: &Vec<Token>, pos: &mut usize) -> Node {

@@ -1,4 +1,4 @@
-#![feature(core_intrinsics)]
+#![feature(core_intrinsics, dbg_macro)]
 
 pub mod gen_x86;
 pub mod gen_ir;

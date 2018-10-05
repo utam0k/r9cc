@@ -244,6 +244,37 @@ fn gen_post_inc(ty: &Type, expr: Box<Node>, num: i32) -> i32 {
     return val as i32;
 }
 
+fn to_assign_op(op: &TokenType) -> IROp {
+    use self::TokenType::*;
+    match op {
+        MulEQ => IROp::Mul,
+        DivEQ => IROp::Div,
+        ModEQ => IROp::Mod,
+        AddEQ => IROp::Add,
+        SubEQ => IROp::Sub,
+        ShlEQ => IROp::SHL,
+        ShrEQ => IROp::SHR,
+        BitandEQ => IROp::AND,
+        XorEQ => IROp::XOR,
+        BitorEQ => IROp::OR,
+        e => panic!("unexpected op: {:?}", e),
+    }
+}
+
+fn gen_assign_op(op: &TokenType, ty: &Type, lhs: Box<Node>, rhs: Box<Node>) -> Option<usize> {
+    let src = gen_expr(rhs);
+    let dst = gen_lval(lhs);
+    let val = Some(*NREG.lock().unwrap());
+    *NREG.lock().unwrap() += 1;
+
+    load(ty, val, dst);
+    add(to_assign_op(op), val, src);
+    kill(src);
+    store(ty, dst, val);
+    kill(dst);
+    return val;
+}
+
 fn gen_expr(node: Box<Node>) -> Option<usize> {
     let node = *node;
     match node.op {
@@ -299,15 +330,16 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
             return Some(r);
         }
         NodeType::BinOp(op, lhs, rhs) => {
+            use self::TokenType::*;
             match op {
-                TokenType::Equal => {
+                Equal => {
                     let rhs = gen_expr(rhs);
                     let lhs = gen_lval(lhs);
                     store(&node.ty, lhs, rhs);
                     kill(rhs);
                     return lhs;
                 }
-                TokenType::Plus | TokenType::Minus => {
+                Plus | Minus => {
                     let insn = IROp::from(op);
                     if let Ctype::Ptr(ref ptr_to) = lhs.ty.ty.clone() {
                         let rhs = gen_expr(rhs);
@@ -321,7 +353,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                         gen_binop(insn, lhs, rhs)
                     }
                 }
-                TokenType::Logand => {
+                Logand => {
                     let x = Some(*NLABEL.lock().unwrap());
                     *NLABEL.lock().unwrap() += 1;
 
@@ -355,16 +387,18 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                     label(y);
                     return r1;
                 }
-                TokenType::EQ => gen_binop(IROp::EQ, lhs, rhs),
-                TokenType::NE => gen_binop(IROp::NE, lhs, rhs),
-                TokenType::LE => gen_binop(IROp::LE, lhs, rhs),
-                TokenType::And => gen_binop(IROp::AND, lhs, rhs),
-                TokenType::VerticalBar => gen_binop(IROp::OR, lhs, rhs),
-                TokenType::Hat => gen_binop(IROp::XOR, lhs, rhs),
-                TokenType::SHL => gen_binop(IROp::SHL, lhs, rhs),
-                TokenType::SHR => gen_binop(IROp::SHR, lhs, rhs),
-                TokenType::Mod => gen_binop(IROp::Mod, lhs, rhs),
-                TokenType::Comma => {
+                MulEQ | DivEQ | ModEQ | AddEQ | SubEQ | ShlEQ | ShrEQ | BitandEQ | XorEQ |
+                BitorEQ => gen_assign_op(&op, &node.ty, lhs, rhs),
+                EQ => gen_binop(IROp::EQ, lhs, rhs),
+                NE => gen_binop(IROp::NE, lhs, rhs),
+                LE => gen_binop(IROp::LE, lhs, rhs),
+                And => gen_binop(IROp::AND, lhs, rhs),
+                VerticalBar => gen_binop(IROp::OR, lhs, rhs),
+                Hat => gen_binop(IROp::XOR, lhs, rhs),
+                SHL => gen_binop(IROp::SHL, lhs, rhs),
+                SHR => gen_binop(IROp::SHR, lhs, rhs),
+                Mod => gen_binop(IROp::Mod, lhs, rhs),
+                Comma => {
                     kill(gen_expr(lhs));
                     gen_expr(rhs)
                 }

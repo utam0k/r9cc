@@ -54,6 +54,16 @@ pub enum TokenType {
     SHL, // <<
     Inc, // ++
     Dec, // --
+    MulEQ, // *=
+    DivEQ, // /=
+    ModEQ, // %=
+    AddEQ, // +=
+    SubEQ, // -=
+    ShlEQ, // <<=
+    ShrEQ, // >>=
+    BitandEQ, // &=
+    XorEQ, // ^=
+    BitorEQ, // |=
     SHR, // >>
     Mod, // %
     Return, // "return"
@@ -107,6 +117,8 @@ impl Symbol {
 
 lazy_static! {
     static ref SYMBOLS: Vec<Symbol> = [
+        Symbol::new("<<=", TokenType::ShlEQ),
+        Symbol::new(">>=", TokenType::ShrEQ),
         Symbol::new("!=", TokenType::NE),
         Symbol::new("&&", TokenType::Logand),
         Symbol::new("++", TokenType::Inc),
@@ -118,6 +130,14 @@ lazy_static! {
         Symbol::new(">=", TokenType::GE),
         Symbol::new(">>", TokenType::SHR),
         Symbol::new("||", TokenType::Logor),
+        Symbol::new("*=", TokenType::MulEQ),
+        Symbol::new("/=", TokenType::DivEQ),
+        Symbol::new("%=", TokenType::ModEQ),
+        Symbol::new("+=", TokenType::AddEQ),
+        Symbol::new("-=", TokenType::SubEQ),
+        Symbol::new("&=", TokenType::BitandEQ),
+        Symbol::new("^=", TokenType::XorEQ),
+        Symbol::new("|=", TokenType::BitorEQ),
     ].to_vec();
 }
 
@@ -184,8 +204,7 @@ fn print_line(t: &Token) {
 
 pub fn bad_token(t: &Token, msg: &str) -> ! {
     print_line(t);
-    println!("{}", msg);
-    panic!();
+    panic!("{}", msg);
 }
 
 fn escaped(c: &char) -> Option<char> {

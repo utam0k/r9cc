@@ -1,21 +1,25 @@
 use gen_ir::{IROp, Function, IR};
 use util::roundup;
-use {REGS, REGS8, REGS32, Scope, Var};
+use {REGS_N, Scope, Var};
+
+const REGS: [&str; REGS_N] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
+const REGS8: [&str; REGS_N] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
+const REGS32: [&str; REGS_N] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
 
 use std::sync::Mutex;
 
 // Quoted from 9cc
 // > This pass generates x86-64 assembly from IR.
 
-const ARGREG8: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
-const ARGREG32: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
-const ARGREG64: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+const ARGREGS: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+const ARGREGS8: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
+const ARGREGS32: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
 
 lazy_static! {
     static ref LABEL: Mutex<usize> = Mutex::new(0);
 }
 
-fn escape(s: String, len: usize) -> String {
+fn blackslash_escape(s: String, len: usize) -> String {
     let mut sb = String::new();
     for i in 0..len {
         if let Some(c) = s.chars().collect::<Vec<char>>().get(i) {
@@ -70,9 +74,9 @@ fn reg(r: usize, size: u8) -> &'static str {
 
 fn argreg(r: usize, size: u8) -> &'static str {
     match size {
-        1 => ARGREG8[r],
-        4 => ARGREG32[r],
-        8 => ARGREG64[r],
+        1 => ARGREGS8[r],
+        4 => ARGREGS32[r],
+        8 => ARGREGS[r],
         _ => unreachable!(),
     }
 }
@@ -105,7 +109,7 @@ fn gen(f: Function) {
             }
             Call(name, nargs, args) => {
                 for i in 0..nargs {
-                    emit!("mov {}, {}", ARGREG64[i], REGS[args[i]]);
+                    emit!("mov {}, {}", ARGREGS[i], REGS[args[i]]);
                 }
                 emit!("push r10");
                 emit!("push r11");
@@ -210,7 +214,7 @@ pub fn gen_x86(globals: Vec<Var>, fns: Vec<Function>) {
                 continue;
             }
             print!("{}:\n", var.name);
-            emit!(".ascii \"{}\"", escape(data, len));
+            emit!(".ascii \"{}\"", blackslash_escape(data, len));
             continue;
         }
         unreachable!();

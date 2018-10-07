@@ -17,7 +17,7 @@ use {Ctype, Type, Scope};
 use std::sync::Mutex;
 
 lazy_static!{
-    static ref NREG: Mutex<usize> = Mutex::new(0);
+    static ref NUM_REGS: Mutex<usize> = Mutex::new(0);
     static ref NLABEL: Mutex<usize> = Mutex::new(1);
 
     static ref RETURN_LABEL: Mutex<usize> = Mutex::new(0);
@@ -189,14 +189,14 @@ fn gen_lval(node: Box<Node>) -> Option<usize> {
             r
         }
         NodeType::Lvar(Scope::Local(offset)) => {
-            let r = Some(*NREG.lock().unwrap());
-            *NREG.lock().unwrap() += 1;
+            let r = Some(*NUM_REGS.lock().unwrap());
+            *NUM_REGS.lock().unwrap() += 1;
             add(IROp::Bprel, r, Some(offset));
             r
         }
         NodeType::Gvar(name, _, _) => {
-            let r = Some(*NREG.lock().unwrap());
-            *NREG.lock().unwrap() += 1;
+            let r = Some(*NUM_REGS.lock().unwrap());
+            *NUM_REGS.lock().unwrap() += 1;
             add(IROp::LabelAddr(name), r, None);
             r
         }
@@ -221,8 +221,8 @@ fn get_inc_scale(ty: &Type) -> usize {
 
 fn gen_pre_inc(ty: &Type, expr: Box<Node>, num: i32) -> i32 {
     let addr = gen_lval(expr);
-    let val = *NREG.lock().unwrap();
-    *NREG.lock().unwrap() += 1;
+    let val = *NUM_REGS.lock().unwrap();
+    *NUM_REGS.lock().unwrap() += 1;
     load(ty, Some(val), addr);
     add(
         IROp::AddImm,
@@ -264,8 +264,8 @@ fn to_assign_op(op: &TokenType) -> IROp {
 fn gen_assign_op(op: &TokenType, ty: &Type, lhs: Box<Node>, rhs: Box<Node>) -> Option<usize> {
     let src = gen_expr(rhs);
     let dst = gen_lval(lhs);
-    let val = Some(*NREG.lock().unwrap());
-    *NREG.lock().unwrap() += 1;
+    let val = Some(*NUM_REGS.lock().unwrap());
+    *NUM_REGS.lock().unwrap() += 1;
 
     load(ty, val, dst);
     add(to_assign_op(op), val, src);
@@ -279,8 +279,8 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
     let node = *node;
     match node.op {
         NodeType::Num(val) => {
-            let r = Some(*NREG.lock().unwrap());
-            *NREG.lock().unwrap() += 1;
+            let r = Some(*NUM_REGS.lock().unwrap());
+            *NUM_REGS.lock().unwrap() += 1;
             add(IROp::Imm, r, Some(val as usize));
             return r;
         }
@@ -297,8 +297,8 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                 args_ir[i] = gen_expr(Box::new(args[i].clone())).unwrap();
             }
 
-            let r = Some(*NREG.lock().unwrap());
-            *NREG.lock().unwrap() += 1;
+            let r = Some(*NUM_REGS.lock().unwrap());
+            *NUM_REGS.lock().unwrap() += 1;
 
             add(IROp::Call(name, args.len(), args_ir), r, None);
 
@@ -318,8 +318,8 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
             let orig_reg = *RETURN_REG.lock().unwrap();
             *RETURN_LABEL.lock().unwrap() = *NLABEL.lock().unwrap();
             *NLABEL.lock().unwrap() += 1;
-            let r = *NREG.lock().unwrap();
-            *NREG.lock().unwrap() += 1;
+            let r = *NUM_REGS.lock().unwrap();
+            *NUM_REGS.lock().unwrap() += 1;
             *RETURN_REG.lock().unwrap() = r;
 
             gen_stmt(*body);
@@ -438,8 +438,8 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
         }
         NodeType::Exclamation(expr) => {
             let lhs = gen_expr(expr);
-            let rhs = Some(*NREG.lock().unwrap());
-            *NREG.lock().unwrap() += 1;
+            let rhs = Some(*NUM_REGS.lock().unwrap());
+            *NUM_REGS.lock().unwrap() += 1;
             add(IROp::Imm, rhs, Some(0));
             add(IROp::EQ, lhs, rhs);
             kill(rhs);
@@ -455,8 +455,8 @@ fn gen_stmt(node: Node) {
         NodeType::Vardef(_, init_may, Scope::Local(offset)) => {
             if let Some(init) = init_may {
                 let rhs = gen_expr(init);
-                let lhs = Some(*NREG.lock().unwrap());
-                *NREG.lock().unwrap() += 1;
+                let lhs = Some(*NUM_REGS.lock().unwrap());
+                *NUM_REGS.lock().unwrap() += 1;
                 add(IROp::Bprel, lhs, Some(offset));
                 store(&node.ty, lhs, rhs);
                 kill(lhs);
@@ -569,7 +569,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
         match node.op {
             NodeType::Func(name, args, body, stacksize) => {
                 *CODE.lock().unwrap() = vec![];
-                // *NREG.lock().unwrap() = 0;
+                // *NUM_REGS.lock().unwrap() = 0;
 
                 for i in 0..args.len() {
                     let arg = &args[i];

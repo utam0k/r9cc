@@ -325,10 +325,6 @@ fn walk(mut node: Node, decay: bool) -> Node {
             args = args.into_iter().map(|arg| walk(arg, true)).collect();
             node.op = Call(name, args);
         }
-        Func(name, mut args, body, stacksize) => {
-            args = args.into_iter().map(|arg| walk(arg, true)).collect();
-            node.op = Func(name, args, Box::new(walk(*body, true)), stacksize);
-        }
         CompStmt(mut stmts) => {
             let f = |stmts: Vec<Node>| -> Vec<Node> {
                 stmts.into_iter().map(|stmt| walk(stmt, true)).collect()
@@ -361,11 +357,20 @@ pub fn sema(nodes: Vec<Node>) -> (Vec<Node>, Vec<Var>) {
         }
 
         assert!(matches!(node.op, NodeType::Func(_, _, _, _)));
-        let mut new = walk(node, true);
-        if let NodeType::Func(name, args, body, _) = new.op {
-            new.op = NodeType::Func(name.clone(), args, body, *STACKSIZE.lock().unwrap());
+        if let NodeType::Func(name, args, body, _) = node.op {
+            let mut args2 = vec![];
+            for arg in args {
+                args2.push(walk(arg, true));
+            }
+            let body2 = walk(*body, true);
+            node.op = NodeType::Func(
+                name.clone(),
+                args2,
+                Box::new(body2),
+                *STACKSIZE.lock().unwrap(),
+            );
             *STACKSIZE.lock().unwrap() = 0;
-            new_nodes.push(new);
+            new_nodes.push(node);
         }
     }
     (new_nodes, GLOBALS.lock().unwrap().clone())

@@ -11,12 +11,36 @@ use r9cc::FILE_NAME;
 
 use std::env;
 use std::fs::File;
+use std::process;
+use std::io;
 use std::io::prelude::*;
+
+fn read_file(filename: String) -> String {
+    let mut input = String::new();
+    let mut fp = io::stdin();
+    if filename != "-".to_string() {
+        let mut fp = File::open(filename).expect("file not found");
+        fp.read_to_string(&mut input).expect(
+            "something went wrong reading the file",
+        );
+        return input;
+    }
+    fp.read_to_string(&mut input).expect(
+        "something went wrong reading the file",
+    );
+    return input;
+}
+fn usage() -> ! {
+    eprint!("Usage: 9cc [-dump-ir1] [-dump-ir2] <file>\n");
+    process::exit(1)
+}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut input = String::new();
-    let mut dump_tokens = false;
+    if args.len() == 1 {
+        usage();
+    }
+
     let mut dump_ir1 = false;
     let mut dump_ir2 = false;
 
@@ -26,27 +50,16 @@ fn main() {
     } else if args.len() == 3 && args[1] == "-dump-ir2" {
         dump_ir2 = true;
         *FILE_NAME.lock().unwrap() = args[2].clone();
-    } else if args.len() == 3 && args[1] == "-dump-tokens" {
-        dump_tokens = true;
-        *FILE_NAME.lock().unwrap() = args[2].clone();
     } else {
         if args.len() != 2 {
-            eprint!("Usage: 9cc [-dump-ir1] [-dump-ir2] <file>\n");
-            return;
+            usage();
         }
         *FILE_NAME.lock().unwrap() = args[1].clone();
     }
-    let mut file = File::open(FILE_NAME.lock().unwrap().clone()).unwrap();
-    file.read_to_string(&mut input).unwrap();
+    let input = read_file(FILE_NAME.lock().unwrap().clone());
 
     // Tokenize and parse.
     let tokens = tokenize(input.chars().collect());
-
-    if dump_tokens {
-        for token in &tokens {
-            println!("{:?}", token.ty);
-        }
-    }
 
     let nodes = parse(&tokens);
     let (nodes, globals) = sema(nodes);

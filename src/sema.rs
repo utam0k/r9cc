@@ -10,19 +10,22 @@ use std::mem;
 // Quoted from 9cc
 // > Semantics analyzer. This pass plays a few important roles as shown
 // > below:
-//
+// >
 // > - Add types to nodes. For example, a tree that represents "1+2" is
 // >   typed as INT because the result type of an addition of two
 // >   integers is integer.
-//
+// >
 // > - Resolve variable names based on the C scope rules.
 // >   Local variables are resolved to offsets from the base pointer.
 // >   Global variables are resolved to their names.
-//
+// >
 // > - Insert nodes to make array-to-pointer conversion explicit.
 // >   Recall that, in C, "array of T" is automatically converted to
 // >   "pointer to T" in most contexts.
-//
+// >
+// > - Scales operands for pointer arithmetic. E.g. ptr+1 becomes ptr+4
+// >   for integer and becomes ptr+8 for pointer.
+// >
 // > - Reject bad assignments, such as `1=2+3`.
 
 macro_rules! matches(
@@ -248,11 +251,25 @@ fn walk(mut node: Node, decay: bool) -> Node {
                         panic!("'pointer {:?} pointer' is not defined", node.op)
                     }
 
+                    if matches!(lhs.ty.ty , Ctype::Ptr(_)) {
+                        rhs = Box::new(Node::scale_ptr(rhs, &lhs.ty));
+                    }
+
                     node.op = BinOp(token_type, lhs.clone(), rhs);
                     node.ty = lhs.ty;
                 }
-                Equal | MulEQ | DivEQ | ModEQ | AddEQ | SubEQ | ShlEQ | ShrEQ | BitandEQ |
-                XorEQ | BitorEQ => {
+                AddEQ | SubEQ => {
+                    lhs = Box::new(walk(*lhs, false));
+                    check_lval(&*lhs);
+                    rhs = Box::new(walk(*rhs, true));
+
+                    if matches!(lhs.ty.ty , Ctype::Ptr(_)) {
+                        rhs = Box::new(Node::scale_ptr(rhs, &lhs.ty));
+                    }
+                    node.op = BinOp(token_type, lhs.clone(), rhs);
+                    node.ty = lhs.ty;
+                }
+                Equal | MulEQ | DivEQ | ModEQ | ShlEQ | ShrEQ | BitandEQ | XorEQ | BitorEQ => {
                     lhs = Box::new(walk(*lhs, false));
                     check_lval(&*lhs);
                     node.op = BinOp(token_type, lhs.clone(), Box::new(walk(*rhs, true)));
@@ -265,16 +282,6 @@ fn walk(mut node: Node, decay: bool) -> Node {
                     node.ty = lhs.ty;
                 }
             }
-        }
-        PreInc(mut expr) => {
-            expr = Box::new(walk(*expr, true));
-            node.ty = expr.ty.clone();
-            node.op = PreInc(expr);
-        }
-        PreDec(mut expr) => {
-            expr = Box::new(walk(*expr, true));
-            node.ty = expr.ty.clone();
-            node.op = PreDec(expr);
         }
         PostInc(mut expr) => {
             expr = Box::new(walk(*expr, true));
@@ -315,11 +322,11 @@ fn walk(mut node: Node, decay: bool) -> Node {
         ExprStmt(expr) => node.op = ExprStmt(Box::new(walk(*expr, true))),
         Sizeof(mut expr) => {
             expr = Box::new(walk(*expr, false));
-            node = Node::int_ty(expr.ty.size as i32)
+            node = Node::new_int(expr.ty.size as i32)
         }
         Alignof(mut expr) => {
             expr = Box::new(walk(*expr, false));
-            node = Node::int_ty(expr.ty.align as i32)
+            node = Node::new_int(expr.ty.align as i32)
         }
         Call(name, mut args) => {
             args = args.into_iter().map(|arg| walk(arg, true)).collect();

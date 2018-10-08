@@ -339,20 +339,8 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                     kill(lhs);
                     return rhs;
                 }
-                Plus | Minus => {
-                    let insn = IROp::from(op);
-                    if let Ctype::Ptr(ref ptr_to) = lhs.ty.ty.clone() {
-                        let rhs = gen_expr(rhs);
-                        add(IROp::MulImm, rhs, Some(ptr_to.size));
-
-                        let lhs = gen_expr(lhs);
-                        add(insn, lhs, rhs);
-                        kill(rhs);
-                        lhs
-                    } else {
-                        gen_binop(insn, lhs, rhs)
-                    }
-                }
+                Plus => gen_binop(IROp::Add, lhs, rhs),
+                Minus => gen_binop(IROp::Sub, lhs, rhs),
                 Logand => {
                     let x = Some(*NLABEL.lock().unwrap());
                     *NLABEL.lock().unwrap() += 1;
@@ -410,8 +398,6 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
             add(IROp::Neg, r, None);
             return r;
         }
-        NodeType::PreInc(expr) => return Some(gen_pre_inc(&node.ty, expr, 1) as usize),
-        NodeType::PreDec(expr) => return Some(gen_pre_inc(&node.ty, expr, -1) as usize),
         NodeType::PostInc(expr) => return Some(gen_post_inc(&node.ty, expr, 1) as usize),
         NodeType::PostDec(expr) => return Some(gen_post_inc(&node.ty, expr, -1) as usize),
         NodeType::Ternary(cond, then, els) => {

@@ -37,8 +37,6 @@ pub enum NodeType {
     Dot(Box<Node>, String, usize), // Struct member accessm, (expr, name, offset)
     Exclamation(Box<Node>), // !, expr
     Neg(Box<Node>), // -
-    PreInc(Box<Node>), // pre ++
-    PreDec(Box<Node>), // pre --
     PostInc(Box<Node>), // post ++
     PostDec(Box<Node>), // post --
     Return(Box<Node>), // "return", stmt
@@ -67,12 +65,25 @@ impl Node {
         }
     }
 
-    pub fn int_ty(val: i32) -> Self {
+    pub fn new_int(val: i32) -> Self {
         Node::new(NodeType::Num(val))
+    }
+
+    pub fn scale_ptr(node: Box<Node>, ty: &Type) -> Self {
+        match ty.ty {
+            Ctype::Ptr(ref ptr_to) => {
+                Node::new_binop(TokenType::Mul, *node, Node::new_int(ptr_to.size as i32))
+            }
+            _ => panic!("expect ptr type"),
+        }
     }
 
     pub fn new_binop(ty: TokenType, lhs: Node, rhs: Node) -> Self {
         Node::new(NodeType::BinOp(ty, Box::new(lhs), Box::new(rhs)))
+    }
+
+    pub fn new_num(val: i32) -> Self {
+        Node::new(NodeType::Num(val))
     }
 
     pub fn is_null(&self) -> bool {
@@ -291,11 +302,7 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let t = &tokens[*pos];
     *pos += 1;
     match t.ty {
-        TokenType::Num(val) => {
-            let mut node = Node::new(NodeType::Num(val));
-            node.ty = Box::new(Type::int_ty());
-            node
-        }
+        TokenType::Num(val) => Node::new_num(val),
         TokenType::Str(ref str, len) => {
             let mut node = Node::new(NodeType::Str(str.clone(), len));
             node.ty = Box::new(Type::ary_of(Box::new(Type::char_ty()), len));
@@ -386,18 +393,20 @@ fn unary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     if consume(TokenType::Exclamation, tokens, pos) {
         return new_expr!(NodeType::Exclamation, unary(tokens, pos));
     }
-    if consume(TokenType::Inc, tokens, pos) {
-        return new_expr!(NodeType::PreInc, unary(tokens, pos));
-    }
-    if consume(TokenType::Dec, tokens, pos) {
-        return new_expr!(NodeType::PreDec, unary(tokens, pos));
-    }
     if consume(TokenType::Sizeof, tokens, pos) {
         return new_expr!(NodeType::Sizeof, unary(tokens, pos));
     }
     if consume(TokenType::Alignof, tokens, pos) {
         return new_expr!(NodeType::Alignof, unary(tokens, pos));
     }
+
+    if consume(TokenType::Inc, tokens, pos) {
+        return Node::new_binop(TokenType::AddEQ, unary(tokens, pos), Node::new_num(1));
+    }
+    if consume(TokenType::Dec, tokens, pos) {
+        return Node::new_binop(TokenType::SubEQ, unary(tokens, pos), Node::new_num(1));
+    }
+
     postfix(tokens, pos)
 }
 

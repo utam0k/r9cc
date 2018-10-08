@@ -221,63 +221,6 @@ fn escaped(c: &char) -> Option<char> {
     }
 }
 
-fn read_char(p: &Vec<char>, pos: &mut usize) -> char {
-    let result: char;
-    if let Some(c) = p.get(*pos) {
-        if c != &'\\' {
-            result = c.clone();
-            *pos += 1;
-        } else {
-            *pos += 1;
-            let c2 = p.get(*pos).unwrap();
-            result = if let Some(esc) = escaped(c2) {
-                esc
-            } else {
-                c2.clone()
-            };
-            *pos += 1;
-        }
-
-        if p.get(*pos) != Some(&'\'') {
-            panic!("unclosed character literal");
-        }
-
-        *pos += 1;
-        return result;
-    } else {
-        panic!("premature end of input");
-    }
-}
-
-fn read_string(p: &Vec<char>, pos: usize) -> (String, usize) {
-    let mut sb = String::new();
-    let mut len = 0;
-    loop {
-        if let Some(mut c2) = p.get(pos + len) {
-            if c2 == &'"' {
-                return (sb, len + 1);
-            }
-
-            if c2 != &'\\' {
-                len += 1;
-                sb.push(c2.clone());
-                continue;
-            }
-
-            len += 1;
-            c2 = p.get(pos + len).unwrap();
-            if let Some(esc) = escaped(c2) {
-                sb.push(esc);
-            } else {
-                sb.push(c2.clone());
-            }
-            len += 1;
-        } else {
-            panic!("PREMATURE end of input");
-        }
-    }
-}
-
 fn keyword_map() -> HashMap<String, TokenType> {
     let mut map = HashMap::new();
     map.insert("_Alignof".into(), TokenType::Alignof);
@@ -298,11 +241,121 @@ fn keyword_map() -> HashMap<String, TokenType> {
     map
 }
 
+fn block_comment(p: &Vec<char>, pos: &mut usize) {
+    *pos += 2;
+    loop {
+        let two_char = p.get(*pos..*pos + 2).expect("unclosed comment");
+        *pos += 1;
+        if two_char == &['*', '/'] {
+            *pos += 1;
+            return;
+        }
+    }
+}
+
+fn char_literal(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) -> char {
+    *pos += 1;
+    let result: char;
+    let c = p.get(*pos).expect("premature end of input");
+    if c != &'\\' {
+        result = c.clone();
+        *pos += 1;
+    } else {
+        *pos += 1;
+        let c2 = p.get(*pos).unwrap();
+        result = if let Some(esc) = escaped(c2) {
+            esc
+        } else {
+            c2.clone()
+        };
+        *pos += 1;
+    }
+
+    if p.get(*pos) != Some(&'\'') {
+        panic!("unclosed character literal");
+    }
+
+    *pos += 1;
+    tokens.push(Token::new(TokenType::Num(result as u8 as i32), *pos - 1));
+    return result;
+}
+
+fn string_literal(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
+    *pos += 1;
+    let mut sb = String::new();
+    let mut len = 0;
+    loop {
+        let mut c2 = p.get(*pos + len).expect("PREMATURE end of input");
+        if c2 == &'"' {
+            len += 1;
+            *pos += len;
+            let token = Token::new(TokenType::Str(sb, len), *pos - len - 1);
+            tokens.push(token);
+            return;
+        }
+
+        if c2 != &'\\' {
+            len += 1;
+            sb.push(c2.clone());
+            continue;
+        }
+
+        len += 1;
+        c2 = p.get(*pos + len).unwrap();
+        if let Some(esc) = escaped(c2) {
+            sb.push(esc);
+        } else {
+            sb.push(c2.clone());
+        }
+        len += 1;
+    }
+}
+
+fn ident(
+    p: &Vec<char>,
+    keywords: &HashMap<String, TokenType>,
+    pos: &mut usize,
+    tokens: &mut Vec<Token>,
+) {
+    let mut len = 1;
+    while let Some(c2) = p.get(*pos + len) {
+        if c2.is_alphabetic() || c2.is_ascii_digit() || c2 == &'_' {
+            len += 1;
+            continue;
+        }
+        break;
+    }
+
+    let name: String = p[*pos..*pos + len].into_iter().collect();
+    *pos += len;
+    let token;
+    if let Some(keyword) = keywords.get(&name) {
+        token = Token::new(keyword.clone(), *pos - len);
+    } else {
+        token = Token::new(TokenType::Ident(name.clone()), *pos - len);
+    }
+    tokens.push(token);
+}
+
+fn num(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
+    let mut val: i32 = 0;
+    let mut len = 0;
+    for c in p[*pos..].iter() {
+        if !c.is_ascii_digit() {
+            break;
+        }
+        val = val * 10 + c.to_digit(10).unwrap() as i32;
+        len += 1;
+    }
+    *pos += len;
+    let token = Token::new(TokenType::Num(val as i32), *pos - len);
+    tokens.push(token);
+}
+
 // Tokenized input is stored to this vec.
-pub fn tokenize(p: Vec<char>) -> Vec<Token> {
+fn scan(p: &Vec<char>, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
     *INPUT_FILE.lock().unwrap() = p.clone();
     let mut tokens: Vec<Token> = vec![];
-    let keywords = keyword_map();
 
     let mut pos = 0;
 
@@ -323,40 +376,20 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
 
         // Block comment
         if p.get(pos..pos + 2) == Some(&['/', '*']) {
-            pos += 2;
-            loop {
-                if let Some(two_char) = p.get(pos..pos + 2) {
-                    pos += 1;
-                    if two_char == &['*', '/'] {
-                        pos += 1;
-                        continue 'outer;
-                    }
-                } else {
-                    panic!("unclosed comment");
-                }
-            }
+            block_comment(&p, &mut pos);
+            continue;
         }
 
         // Character literal
         if c == &'\'' {
-            pos += 1;
-            let val = read_char(&p, &mut pos);
-            tokens.push(Token::new(
-                TokenType::Num(val.clone() as u8 as i32),
-                pos - 1,
-            ));
+            char_literal(&p, &mut pos, &mut tokens);
             continue;
         }
 
 
         // String literal
         if c == &'"' {
-            pos += 1;
-
-            let (sb, len) = read_string(&p, pos);
-            pos += len;
-            let token = Token::new(TokenType::Str(sb, len), pos - len - 1);
-            tokens.push(token);
+            string_literal(&p, &mut pos, &mut tokens);
             continue;
         }
 
@@ -388,41 +421,13 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
 
         // Keyword or identifier
         if c.is_alphabetic() || c == &'_' {
-            let mut len = 1;
-            while let Some(c2) = p.get(pos + len) {
-                if c2.is_alphabetic() || c2.is_ascii_digit() || c2 == &'_' {
-                    len += 1;
-                    continue;
-                }
-                break;
-            }
-
-            let name: String = p[pos..pos + len].into_iter().collect();
-            pos += len;
-            let token;
-            if let Some(keyword) = keywords.get(&name) {
-                token = Token::new(keyword.clone(), pos - len);
-            } else {
-                token = Token::new(TokenType::Ident(name.clone()), pos - len);
-            }
-            tokens.push(token);
+            ident(&p, &keywords, &mut pos, &mut tokens);
             continue;
         }
 
         // Number
         if c.is_ascii_digit() {
-            let mut val: i32 = 0;
-            let mut len = 0;
-            for c in p[pos..].iter() {
-                if !c.is_ascii_digit() {
-                    break;
-                }
-                val = val * 10 + c.to_digit(10).unwrap() as i32;
-                len += 1;
-            }
-            pos += len;
-            let token = Token::new(TokenType::Num(val as i32), pos - len);
-            tokens.push(token);
+            num(&p, &mut pos, &mut tokens);
             continue;
         }
 
@@ -432,4 +437,8 @@ pub fn tokenize(p: Vec<char>) -> Vec<Token> {
         );
     }
     tokens
+}
+
+pub fn tokenize(p: Vec<char>) -> Vec<Token> {
+    scan(&p, &keyword_map())
 }

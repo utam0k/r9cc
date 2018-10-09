@@ -439,6 +439,17 @@ fn scan(p: &Vec<char>, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
     tokens
 }
 
+fn remove_backslash_newline(p: &mut Vec<char>) {
+    let mut pos = 0;
+    while pos < p.len() {
+        if p[pos] == '\\' && p[pos + 1] == '\n' {
+            p.remove(pos);
+            p.remove(pos);
+        }
+        pos += 1;
+    }
+}
+
 fn append(x_str: &String, y_str: &String, start: usize) -> Token {
     let concated = format!("{}{}", x_str, y_str);
     let l = concated.len() + 1; // Because `+1` has `\0`.
@@ -468,7 +479,8 @@ fn join_string_literals(tokens: &Vec<Token>) -> Vec<Token> {
     v
 }
 
-pub fn tokenize(p: Vec<char>) -> Vec<Token> {
+pub fn tokenize(mut p: Vec<char>) -> Vec<Token> {
+    remove_backslash_newline(&mut p);
     let tokens = scan(&p, &keyword_map());
     join_string_literals(&tokens)
 }

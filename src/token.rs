@@ -439,6 +439,17 @@ fn scan(p: &Vec<char>, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
     tokens
 }
 
+fn canonicalize_newline(p: &mut Vec<char>) {
+    let mut pos = 0;
+    while pos < p.len() {
+        if p[pos] == '\r' && p[pos + 1] == '\n' {
+            p.remove(pos);
+            p.remove(pos);
+        }
+        pos += 1;
+    }
+}
+
 fn remove_backslash_newline(p: &mut Vec<char>) {
     let mut pos = 0;
     while pos < p.len() {
@@ -480,6 +491,7 @@ fn join_string_literals(tokens: &Vec<Token>) -> Vec<Token> {
 }
 
 pub fn tokenize(mut p: Vec<char>) -> Vec<Token> {
+    canonicalize_newline(&mut p);
     remove_backslash_newline(&mut p);
     let tokens = scan(&p, &keyword_map());
     join_string_literals(&tokens)

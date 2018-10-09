@@ -439,6 +439,36 @@ fn scan(p: &Vec<char>, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
     tokens
 }
 
+fn append(x_str: &String, y_str: &String, start: usize) -> Token {
+    let concated = format!("{}{}", x_str, y_str);
+    let l = concated.len() + 1; // Because `+1` has `\0`.
+    return Token::new(TokenType::Str(concated, l), start);
+}
+
+fn join_string_literals(tokens: &Vec<Token>) -> Vec<Token> {
+    let mut v = vec![];
+    let mut last_may: Option<Token> = None;
+
+    for mut t in tokens.clone() {
+        if let Some(ref last) = last_may {
+            match (&last.ty, &t.ty) {
+                (TokenType::Str(ref last_str, _), TokenType::Str(ref t_str, _)) => {
+                    let new = append(last_str, t_str, last.start);
+                    v.pop();
+                    v.push(new);
+                    continue;
+                }
+                _ => (),
+            }
+        }
+
+        last_may = Some(t.clone());
+        v.push(t.clone());
+    }
+    v
+}
+
 pub fn tokenize(p: Vec<char>) -> Vec<Token> {
-    scan(&p, &keyword_map())
+    let tokens = scan(&p, &keyword_map());
+    join_string_literals(&tokens)
 }

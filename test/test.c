@@ -151,6 +151,8 @@ int main() {
   EXPECT('b', ({ char *p = "abc"; return p[1]; }));
   EXPECT('c', ({ char *p = "abc"; return p[2]; }));
   EXPECT(0, ({ char *p = "abc"; return p[3]; }));
+  EXPECT(7, sizeof("abc" "def"));
+  EXPECT(9, sizeof("ab\0c" "\0def"));
 
   EXPECT(1, ({ int x = 1; { int x = 2; } return x; }));
 

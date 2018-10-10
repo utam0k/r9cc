@@ -236,7 +236,8 @@ fn add_member(ty: &mut Type, mut members: Vec<Node>) {
     ty.size = roundup(off, align);
 }
 
-fn read_type(t: &Token, tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
+fn decl_specifiers(tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
+    let t = &tokens[*pos];
     *pos += 1;
     match t.ty {
         TokenType::Ident(ref name) => {
@@ -261,7 +262,7 @@ fn read_type(t: &Token, tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
             let mut members = vec![];
             if consume(TokenType::LeftBrace, tokens, pos) {
                 while !consume(TokenType::RightBrace, tokens, pos) {
-                    members.push(decl(tokens, pos))
+                    members.push(declaration(tokens, pos))
                 }
             }
 
@@ -281,10 +282,7 @@ fn read_type(t: &Token, tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
             }
             return Some(ty.clone());
         }
-        _ => {
-            *pos -= 1;
-            None
-        }
+        _ => bad_token(&t, "typename expected"),
     }
 }
 
@@ -567,7 +565,7 @@ fn expr(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
 fn ctype(tokens: &Vec<Token>, pos: &mut usize) -> Type {
     let t = &tokens[*pos];
-    if let Some(mut ty) = read_type(t, tokens, pos) {
+    if let Some(mut ty) = decl_specifiers(tokens, pos) {
         while consume(TokenType::Mul, tokens, pos) {
             ty = Type::ptr_to(Box::new(ty));
         }
@@ -594,44 +592,6 @@ fn read_array(mut ty: Box<Type>, tokens: &Vec<Token>, pos: &mut usize) -> Type {
     *ty
 }
 
-fn decl(tokens: &Vec<Token>, pos: &mut usize) -> Node {
-    // Read the first half of type name (e.g. `int *`).
-    let mut ty = Box::new(ctype(tokens, pos));
-
-    // Read an identifier.
-    let name = ident(tokens, pos);
-    let init: Option<Box<Node>>;
-
-    // Read the second half of type name (e.g. `[3][5]`).
-    ty = Box::new(read_array(ty, tokens, pos));
-    if let Ctype::Void = ty.ty {
-        panic!("void variable: {}", name);
-    }
-
-    // Read an initializer.
-    if consume(TokenType::Equal, tokens, pos) {
-        // Assign a value when initializing an array.
-        if consume(TokenType::LeftBrace, tokens, pos) {
-            let mut stmts = vec![];
-            let mut ary_decl = Node::new(NodeType::Vardef(name.clone(), None, Scope::Local(0)));
-            ary_decl.ty = ty;
-            stmts.push(ary_decl);
-            let init_ary = array_init_rval(tokens, pos, Node::new(NodeType::Ident(name)));
-            expect(TokenType::Semicolon, tokens, pos);
-            stmts.push(init_ary);
-            return Node::new(NodeType::VecStmt(stmts));
-        }
-
-        init = Some(Box::new(assign(tokens, pos)));
-    } else {
-        init = None
-    }
-    expect(TokenType::Semicolon, tokens, pos);
-    let mut node = Node::new(NodeType::Vardef(name.clone(), init, Scope::Local(0)));
-    node.ty = ty;
-    node
-}
-
 fn array_init_rval(tokens: &Vec<Token>, pos: &mut usize, ident: Node) -> Node {
     let mut init = vec![];
     let mut i = 0;
@@ -653,12 +613,80 @@ fn array_init_rval(tokens: &Vec<Token>, pos: &mut usize, ident: Node) -> Node {
     return Node::new(NodeType::VecStmt(init));
 }
 
-fn param(tokens: &Vec<Token>, pos: &mut usize) -> Node {
-    let ty = Box::new(ctype(tokens, pos));
-    let name = ident(tokens, pos);
-    let mut node = Node::new(NodeType::Vardef(name.clone(), None, Scope::Local(0)));
-    node.ty = ty;
-    node
+fn update_ptr_to(src: &mut Box<Type>, dst: Box<Type>, tokens: &Vec<Token>, pos: &mut usize) {
+    match src.ty {
+        Ctype::Ptr(ref mut ptr_to) => update_ptr_to(ptr_to, dst, tokens, pos),
+        _ => *src = dst,
+    }
+}
+
+fn direct_decl(ty: Box<Type>, tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let t = &tokens[*pos];
+    let mut placeholder = Box::new(Type::default());
+    let mut node;
+
+    if let TokenType::Ident(_) = t.ty {
+        node = Node::new(NodeType::Vardef(ident(tokens, pos), None, Scope::Local(0)));
+
+    } else if consume(TokenType::LeftParen, tokens, pos) {
+        node = declarator(&mut placeholder, tokens, pos);
+        expect(TokenType::RightParen, tokens, pos);
+    } else {
+        bad_token(t, "bad direct-declarator");
+    }
+
+    // Read the second half of type name (e.g. `[3][5]`).
+    update_ptr_to(
+        &mut node.ty,
+        Box::new(read_array(ty, tokens, pos)),
+        tokens,
+        pos,
+    );
+
+    // Read an initializer.
+    let init: Option<Box<Node>>;
+    if consume(TokenType::Equal, tokens, pos) {
+        // Assign a value when initializing an array.
+        if let TokenType::Ident(ref name) = t.ty {
+            if consume(TokenType::LeftBrace, tokens, pos) {
+                let mut stmts = vec![];
+                let mut ary_declaration =
+                    Node::new(NodeType::Vardef(name.clone(), None, Scope::Local(0)));
+                ary_declaration.ty = node.ty;
+                stmts.push(ary_declaration);
+                let init_ary =
+                    array_init_rval(tokens, pos, Node::new(NodeType::Ident(name.clone())));
+                stmts.push(init_ary);
+                return Node::new(NodeType::VecStmt(stmts));
+            }
+        }
+
+        init = Some(Box::new(assign(tokens, pos)));
+        match node.op {
+            NodeType::Vardef(_, ref mut init2, _) => *init2 = init,
+            _ => unreachable!(),
+        }
+    }
+    return node;
+}
+
+fn declarator(ty: &mut Type, tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    while consume(TokenType::Mul, tokens, pos) {
+        *ty = Type::ptr_to(Box::new(ty.clone()));
+    }
+    direct_decl(Box::new(ty.clone()), tokens, pos)
+}
+
+fn declaration(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let mut ty = decl_specifiers(tokens, pos).unwrap();
+    let node = declarator(&mut ty, tokens, pos);
+    expect(TokenType::Semicolon, tokens, pos);
+    return node;
+}
+
+fn param_declaration(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let mut ty = decl_specifiers(tokens, pos).unwrap();
+    declarator(&mut ty, tokens, pos)
 }
 
 fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
@@ -674,7 +702,7 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
     match t.ty {
         TokenType::Typedef => {
-            let node = decl(tokens, pos);
+            let node = declaration(tokens, pos);
             if let NodeType::Vardef(name, _, _) = node.op {
                 ENV.lock().unwrap().typedefs.insert(name, *node.ty);
                 return Node::new(NodeType::Null);
@@ -697,7 +725,7 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             expect(TokenType::LeftParen, tokens, pos);
 
             let init: Box<Node> = if is_typename(&tokens[*pos]) {
-                Box::new(decl(tokens, pos))
+                Box::new(declaration(tokens, pos))
             } else if consume(TokenType::Semicolon, tokens, pos) {
                 Box::new(Node::new(NodeType::Null))
             } else {
@@ -758,7 +786,7 @@ fn stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {
         _ => {
             *pos -= 1;
             if is_typename(&tokens[*pos]) {
-                return decl(tokens, pos);
+                return declaration(tokens, pos);
             }
             return expr_stmt(tokens, pos);
         }
@@ -796,16 +824,17 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Option<Node> {
     if consume(TokenType::LeftParen, tokens, pos) {
         let mut args = vec![];
         if !consume(TokenType::RightParen, tokens, pos) {
-            args.push(param(tokens, pos));
+            args.push(param_declaration(tokens, pos));
             while consume(TokenType::Comma, tokens, pos) {
-                args.push(param(tokens, pos));
+                args.push(param_declaration(tokens, pos));
             }
             expect(TokenType::RightParen, tokens, pos);
         }
 
+        let t = &tokens[*pos];
         expect(TokenType::LeftBrace, tokens, pos);
         if is_typedef {
-            panic!("typedef {} has function definition", name);
+            bad_token(t, "typedef {} has function definition");
         }
         let body = compound_stmt(tokens, pos);
         return Some(Node::new(NodeType::Func(name, args, Box::new(body), 0)));
@@ -845,7 +874,7 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Option<Node> {
  function -> param
 +---------+
 int main() {     ; +-+                        int   []         2
-  int ary[2];    ;   |               +->stmt->decl->read_array->primary
+  int ary[2];    ;   |               +->stmt->declaration->read_array->primary
   ary[0]=1;      ;   | compound_stmt-+->stmt->...                ary
   return ary[0]; ;   |               +->stmt->assign->postfix-+->primary
 }                ; +-+                  return        []      +->primary

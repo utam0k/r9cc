@@ -317,6 +317,7 @@ fn walk(mut node: Node, decay: bool) -> Node {
                 _ => panic!("operand must be a pointer"),
             }
             node.op = Deref(expr);
+            return maybe_decay(node, decay);
         }
         Return(expr) => node.op = Return(Box::new(walk(*expr, true))),
         ExprStmt(expr) => node.op = ExprStmt(Box::new(walk(*expr, true))),

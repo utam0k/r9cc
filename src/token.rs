@@ -337,13 +337,12 @@ fn ident(
     tokens.push(token);
 }
 
-fn hexadecimal(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
-    *pos += 2;
+fn parse_number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>, base: u32) {
     let mut sum: i32 = 0;
     let mut len = 0;
     for c in p[*pos..].iter() {
-        if let Some(val) = c.to_digit(16) {
-            sum = sum * 16 + val as i32;
+        if let Some(val) = c.to_digit(base) {
+            sum = sum * base as i32 + val as i32;
             *pos += 1;
             len += 1;
         } else {
@@ -354,26 +353,19 @@ fn hexadecimal(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
     tokens.push(token);
 }
 
-
 fn number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
-    let two_char = p.get(*pos..*pos + 2);
-    if two_char == Some(&['0', 'x']) || two_char == Some(&['0', 'X']) {
-        hexadecimal(p, pos, tokens);
-        return;
-    }
-
-    let mut val: i32 = 0;
-    let mut len = 0;
-    for c in p[*pos..].iter() {
-        if !c.is_ascii_digit() {
-            break;
+    match p.get(*pos..*pos + 2) {
+        Some(&['0', 'x']) |
+        Some(&['0', 'X']) => {
+            *pos += 2;
+            parse_number(p, pos, tokens, 16);
         }
-        val = val * 10 + c.to_digit(10).unwrap() as i32;
-        len += 1;
+        Some(&['0', _]) => {
+            *pos += 1;
+            parse_number(p, pos, tokens, 8);
+        }
+        _ => parse_number(p, pos, tokens, 10),
     }
-    *pos += len;
-    let token = Token::new(TokenType::Num(val as i32), *pos - len);
-    tokens.push(token);
 }
 
 // Tokenized input is stored to this vec.

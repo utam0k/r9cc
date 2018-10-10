@@ -337,7 +337,31 @@ fn ident(
     tokens.push(token);
 }
 
-fn num(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
+fn hexadecimal(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
+    *pos += 2;
+    let mut sum: i32 = 0;
+    let mut len = 0;
+    for c in p[*pos..].iter() {
+        if let Some(val) = c.to_digit(16) {
+            sum = sum * 16 + val as i32;
+            *pos += 1;
+            len += 1;
+        } else {
+            break;
+        }
+    }
+    let token = Token::new(TokenType::Num(sum as i32), *pos - len);
+    tokens.push(token);
+}
+
+
+fn number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
+    let two_char = p.get(*pos..*pos + 2);
+    if two_char == Some(&['0', 'x']) || two_char == Some(&['0', 'X']) {
+        hexadecimal(p, pos, tokens);
+        return;
+    }
+
     let mut val: i32 = 0;
     let mut len = 0;
     for c in p[*pos..].iter() {
@@ -427,7 +451,7 @@ fn scan(p: &Vec<char>, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
 
         // Number
         if c.is_ascii_digit() {
-            num(&p, &mut pos, &mut tokens);
+            number(&p, &mut pos, &mut tokens);
             continue;
         }
 

@@ -578,6 +578,11 @@ fn ctype(tokens: &Vec<Token>, pos: &mut usize) -> Type {
 fn read_array(mut ty: Box<Type>, tokens: &Vec<Token>, pos: &mut usize) -> Type {
     let mut v: Vec<usize> = vec![];
     while consume(TokenType::LeftBracket, tokens, pos) {
+        if consume(TokenType::RightBracket, tokens, pos) {
+            v.push(0); // temporary value
+            continue;
+        }
+
         let len = expr(tokens, pos);
         if let NodeType::Num(n) = len.op {
             v.push(n as usize);
@@ -586,6 +591,8 @@ fn read_array(mut ty: Box<Type>, tokens: &Vec<Token>, pos: &mut usize) -> Type {
             panic!("number expected");
         }
     }
+
+    v.reverse();
     for val in v {
         ty = Box::new(Type::ary_of(ty, val));
     }
@@ -686,7 +693,11 @@ fn declaration(tokens: &Vec<Token>, pos: &mut usize) -> Node {
 
 fn param_declaration(tokens: &Vec<Token>, pos: &mut usize) -> Node {
     let mut ty = decl_specifiers(tokens, pos).unwrap();
-    declarator(&mut ty, tokens, pos)
+    let mut node = declarator(&mut ty, tokens, pos);
+    if let Ctype::Ary(ary_of, _) = node.ty.ty {
+        node.ty = Box::new(Type::ptr_to(ary_of));
+    }
+    node
 }
 
 fn expr_stmt(tokens: &Vec<Token>, pos: &mut usize) -> Node {

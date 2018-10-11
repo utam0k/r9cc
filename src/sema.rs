@@ -330,6 +330,16 @@ fn walk(mut node: Node, decay: bool) -> Node {
             node = Node::new_int(expr.ty.align as i32)
         }
         Call(name, mut args) => {
+            if let Some(var) = find_var(&name) {
+                if let Ctype::Func(returning) = var.ty.ty {
+                    node.ty = returning;
+                } else {
+                    eprint!("bad function: {}", name);
+                }
+            } else {
+                eprint!("bad function: {}", name);
+            }
+
             args = args.into_iter().map(|arg| walk(arg, true)).collect();
             node.op = Call(name, args);
         }
@@ -364,8 +374,22 @@ pub fn sema(nodes: Vec<Node>) -> (Vec<Node>, Vec<Var>) {
             continue;
         }
 
-        assert!(matches!(node.op, NodeType::Func(_, _, _, _)));
+        let mut var;
+        match &node.op {
+            NodeType::Func(name, _, _, _) |
+            NodeType::Decl(name) => {
+                var = Var::new_global(node.ty.clone(), name.clone(), "".into(), 0, false);
+                ENV.lock().unwrap().vars.insert(name.clone(), var);
+            }
+            _ => unreachable!(),
+        }
+
+        if matches!(node.op, NodeType::Decl(_)) {
+            continue;
+        }
+
         if let NodeType::Func(name, args, body, _) = node.op {
+
             let mut args2 = vec![];
             for arg in args {
                 args2.push(walk(arg, true));

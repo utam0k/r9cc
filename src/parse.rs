@@ -23,6 +23,7 @@ pub enum NodeType {
     Num(i32), // Number literal
     Str(String, usize), // String literal, (data, len)
     Ident(String), // Identifier
+    Decl(String), // declaration
     Vardef(String, Option<Box<Node>>, Scope), // Variable definition, name = init
     Lvar(Scope), // Variable reference
     Gvar(String, String, usize), // Variable reference, (name, data, len)
@@ -842,13 +843,22 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Option<Node> {
             expect(TokenType::RightParen, tokens, pos);
         }
 
+        if consume(TokenType::Semicolon, tokens, pos) {
+            let mut node = Node::new(NodeType::Decl(name));
+            node.ty = Box::new(Type::new(Ctype::Func(Box::new(ty)), 0));
+            return Some(node);
+        }
+
         let t = &tokens[*pos];
         expect(TokenType::LeftBrace, tokens, pos);
         if is_typedef {
             bad_token(t, "typedef {} has function definition");
         }
         let body = compound_stmt(tokens, pos);
-        return Some(Node::new(NodeType::Func(name, args, Box::new(body), 0)));
+
+        let mut node = Node::new(NodeType::Func(name, args, Box::new(body), 0));
+        node.ty = Box::new(Type::new(Ctype::Func(Box::new(ty)), 0));
+        return Some(node);
     }
 
     ty = read_array(Box::new(ty), tokens, pos);

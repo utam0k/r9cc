@@ -28,6 +28,7 @@ pub enum Ctype {
     Ptr(Box<Type>), // ptr of
     Ary(Box<Type>, usize), // ary of, len
     Struct(Vec<parse::Node>), // members
+    Func(Box<Type>),
 }
 
 impl Default for Ctype {
@@ -39,8 +40,8 @@ impl Default for Ctype {
 #[derive(Debug, Clone)]
 pub struct Type {
     pub ty: Ctype,
-    pub size: usize,
-    pub align: usize,
+    pub size: usize, // sizeof
+    pub align: usize, // alignof
 }
 
 impl Default for Type {

@@ -8,17 +8,12 @@ pub mod regalloc;
 pub mod token;
 pub mod sema;
 mod util;
+mod preprocess;
 
 #[macro_use]
 extern crate lazy_static;
 
-use std::sync::Mutex;
-
 const REGS_N: usize = 7;
-
-lazy_static! {
-    pub static ref FILE_NAME: Mutex<String> = Mutex::new(String::new());
-}
 
 #[derive(Debug, Clone)]
 pub enum Ctype {

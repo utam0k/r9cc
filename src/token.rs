@@ -1,7 +1,17 @@
+use preprocess::preprocess;
+
 use std::sync::Mutex;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io;
+use std::io::prelude::*;
+use std::rc::Rc;
 
-use FILE_NAME;
+lazy_static! {
+    pub static ref FILE_NAME: Mutex<String> = Mutex::new(String::new());
+}
+
+static mut BUF: Option<Rc<Vec<char>>> = None;
 
 // Tokenizer
 #[derive(Debug, PartialEq, Clone)]
@@ -29,6 +39,7 @@ pub enum TokenType {
     VerticalBar, // |
     Hat, // ^
     Colon, // :
+    HashMark, // #
     If, // "if"
     Else, // "else"
     For, // "for"
@@ -69,6 +80,7 @@ pub enum TokenType {
     Return, // "return"
     Sizeof, // "sizeof"
     Alignof, // "_Alignof"
+    NewLine, // preprocessor-only token
 }
 
 impl TokenType {
@@ -98,6 +110,7 @@ impl TokenType {
             '^' => Some(Hat),
             '%' => Some(Mod),
             ':' => Some(Colon),
+            '#' => Some(HashMark),
             _ => None,
         }
     }
@@ -145,12 +158,22 @@ lazy_static! {
 #[derive(Debug, Clone)]
 pub struct Token {
     pub ty: TokenType, // Token type
-    pub start: usize, // For error reporting
+    // For error reporting
+    pub buf: Rc<Vec<char>>,
+    pub filename: String,
+    pub start: usize,
 }
 
 impl Token {
     pub fn new(ty: TokenType, start: usize) -> Self {
-        Token { ty, start }
+        unsafe {
+            Token {
+                ty,
+                buf: BUF.clone().unwrap(),
+                filename: FILE_NAME.lock().unwrap().clone(),
+                start,
+            }
+        }
     }
 }
 
@@ -159,37 +182,33 @@ lazy_static!{
     static ref INPUT_FILE: Mutex<Vec<char>> = Mutex::new(vec![]);
 }
 
-fn print_line(t: &Token) {
-    let mut pos = 0;
+// Finds a line pointed by a given pointer from the input file
+// to print it out.
+fn print_line(buf: &Vec<char>, path: &String, pos: usize) {
+    let mut p = 0;
     let mut start = 0;
     let mut line = 0;
     let mut col = 0;
-    let input_file = INPUT_FILE.lock().unwrap();
-    for p in input_file.iter() {
-        if p == &'\n' {
+    for c in buf.iter() {
+        if c == &'\n' {
             start = pos + 1;
             line += 1;
             col = 0;
-            pos += 1;
+            p += 1;
             continue;
         }
 
-        if pos != t.start {
+        if p != pos {
             col += 1;
-            pos += 1;
+            p += 1;
             continue;
         }
 
-        print!(
-            "error at {}:{}:{}\n\n",
-            FILE_NAME.lock().unwrap(),
-            line + 1,
-            col
-        );
+        print!("error at {}:{}:{}\n\n", path, line + 1, col);
         break;
     }
 
-    for p in input_file[start..].iter() {
+    for p in buf[start..].iter() {
         if p == &'\n' {
             break;
         }
@@ -203,7 +222,7 @@ fn print_line(t: &Token) {
 }
 
 pub fn bad_token(t: &Token, msg: &str) -> ! {
-    print_line(t);
+    print_line(&t.buf, &t.filename, t.start);
     panic!("{}", msg);
 }
 
@@ -219,6 +238,22 @@ fn escaped(c: &char) -> Option<char> {
         // 'v' => Some("\v"),
         _ => None,
     }
+}
+
+fn read_file(filename: String) -> String {
+    let mut input = String::new();
+    let mut fp = io::stdin();
+    if filename != "-".to_string() {
+        let mut fp = File::open(filename).expect("file not found");
+        fp.read_to_string(&mut input).expect(
+            "something went wrong reading the file",
+        );
+        return input;
+    }
+    fp.read_to_string(&mut input).expect(
+        "something went wrong reading the file",
+    );
+    return input;
 }
 
 fn keyword_map() -> HashMap<String, TokenType> {
@@ -370,12 +405,22 @@ fn number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
 
 // Tokenized input is stored to this vec.
 fn scan(p: &Vec<char>, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
-    *INPUT_FILE.lock().unwrap() = p.clone();
+    unsafe {
+        BUF = Some(Rc::new(p.clone()));
+    }
+
     let mut tokens: Vec<Token> = vec![];
 
     let mut pos = 0;
 
     'outer: while let Some(c) = p.get(pos) {
+        // New line (preprocessor-only token)
+        if c == &'\n' {
+            tokens.push(Token::new(TokenType::NewLine, pos));
+            pos += 1;
+            continue;
+        }
+
         // Skip whitespce
         if c.is_whitespace() {
             pos += 1;
@@ -483,11 +528,22 @@ fn append(x_str: &String, y_str: &String, start: usize) -> Token {
     return Token::new(TokenType::Str(concated, l), start);
 }
 
-fn join_string_literals(tokens: &Vec<Token>) -> Vec<Token> {
+fn strip_newlines(tokens: Vec<Token>) -> Vec<Token> {
+    let mut v: Vec<Token> = vec![];
+
+    for t in tokens.into_iter() {
+        if t.ty != TokenType::NewLine {
+            v.push(t);
+        }
+    }
+    v
+}
+
+fn join_string_literals(tokens: Vec<Token>) -> Vec<Token> {
     let mut v = vec![];
     let mut last_may: Option<Token> = None;
 
-    for mut t in tokens.clone() {
+    for mut t in tokens.into_iter() {
         if let Some(ref last) = last_may {
             match (&last.ty, &t.ty) {
                 (TokenType::Str(ref last_str, _), TokenType::Str(ref t_str, _)) => {
@@ -501,14 +557,22 @@ fn join_string_literals(tokens: &Vec<Token>) -> Vec<Token> {
         }
 
         last_may = Some(t.clone());
-        v.push(t.clone());
+        v.push(t);
     }
     v
 }
 
-pub fn tokenize(mut p: Vec<char>) -> Vec<Token> {
-    canonicalize_newline(&mut p);
-    remove_backslash_newline(&mut p);
-    let tokens = scan(&p, &keyword_map());
-    join_string_literals(&tokens)
+pub fn tokenize(path: String) -> Vec<Token> {
+    *FILE_NAME.lock().unwrap() = path.clone();
+    let mut buf = read_file(path).chars().collect();
+
+    canonicalize_newline(&mut buf);
+    remove_backslash_newline(&mut buf);
+
+
+    let mut tokens = scan(&buf, &keyword_map());
+
+    tokens = preprocess(tokens);
+    tokens = strip_newlines(tokens);
+    join_string_literals(tokens)
 }

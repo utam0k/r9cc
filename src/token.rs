@@ -5,13 +5,12 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
-// use std::rc::Rc;
 
-lazy_static! {
-    pub static ref FILE_NAME: Mutex<String> = Mutex::new(String::new());
+lazy_static!  {
+    static ref FILE_NAME: Mutex<String> = Mutex::new(String::new());
+    static ref BUF: Mutex<Arc<Vec<char>>> = Mutex::new(Arc::new(vec![]));
 }
 
-static mut BUF: Option<Arc<Vec<char>>> = None;
 
 // Tokenizer
 #[derive(Debug, PartialEq, Clone)]
@@ -166,13 +165,11 @@ pub struct Token {
 
 impl Token {
     pub fn new(ty: TokenType, start: usize) -> Self {
-        unsafe {
-            Token {
-                ty,
-                buf: BUF.clone().unwrap(),
-                filename: FILE_NAME.lock().unwrap().clone(),
-                start,
-            }
+        Token {
+            ty,
+            buf: BUF.lock().unwrap().clone(),
+            filename: FILE_NAME.lock().unwrap().clone(),
+            start,
         }
     }
 }
@@ -405,9 +402,7 @@ fn number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
 
 // Tokenized input is stored to this vec.
 fn scan(p: &Vec<char>, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
-    unsafe {
-        BUF = Some(Arc::new(p.clone()));
-    }
+    *BUF.lock().unwrap() = Arc::new(p.clone());
 
     let mut tokens: Vec<Token> = vec![];
 

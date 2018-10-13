@@ -1,17 +1,17 @@
 use preprocess::preprocess;
 
-use std::sync::Mutex;
+use std::sync::{Mutex, Arc};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
-use std::rc::Rc;
+// use std::rc::Rc;
 
 lazy_static! {
     pub static ref FILE_NAME: Mutex<String> = Mutex::new(String::new());
 }
 
-static mut BUF: Option<Rc<Vec<char>>> = None;
+static mut BUF: Option<Arc<Vec<char>>> = None;
 
 // Tokenizer
 #[derive(Debug, PartialEq, Clone)]
@@ -159,7 +159,7 @@ lazy_static! {
 pub struct Token {
     pub ty: TokenType, // Token type
     // For error reporting
-    pub buf: Rc<Vec<char>>,
+    pub buf: Arc<Vec<char>>,
     pub filename: String,
     pub start: usize,
 }
@@ -406,7 +406,7 @@ fn number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
 // Tokenized input is stored to this vec.
 fn scan(p: &Vec<char>, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
     unsafe {
-        BUF = Some(Rc::new(p.clone()));
+        BUF = Some(Arc::new(p.clone()));
     }
 
     let mut tokens: Vec<Token> = vec![];

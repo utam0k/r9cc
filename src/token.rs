@@ -1,4 +1,4 @@
-use preprocess::preprocess;
+use preprocess;
 
 use std::sync::{Mutex, Arc};
 use std::collections::HashMap;
@@ -557,7 +557,7 @@ fn join_string_literals(tokens: Vec<Token>) -> Vec<Token> {
     v
 }
 
-pub fn tokenize(path: String) -> Vec<Token> {
+pub fn tokenize(path: String, ctx: &mut preprocess::Context) -> Vec<Token> {
     *FILE_NAME.lock().unwrap() = path.clone();
     let mut buf = read_file(path).chars().collect();
 
@@ -567,7 +567,7 @@ pub fn tokenize(path: String) -> Vec<Token> {
 
     let mut tokens = scan(&buf, &keyword_map());
 
-    tokens = preprocess(tokens);
+    tokens = preprocess::preprocess(tokens, ctx);
     tokens = strip_newlines(tokens);
     join_string_literals(tokens)
 }

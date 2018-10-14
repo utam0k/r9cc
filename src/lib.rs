@@ -7,8 +7,8 @@ pub mod parse;
 pub mod regalloc;
 pub mod token;
 pub mod sema;
+pub mod preprocess;
 mod util;
-mod preprocess;
 
 #[macro_use]
 extern crate lazy_static;

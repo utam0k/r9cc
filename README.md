@@ -35,7 +35,7 @@ $ make test
 - [x] extern
 - [x] Comment
 - [x] #include
-- [ ] #define
+- [x] #define
 
 # Design
 If you want more information, I think you should refer to [README.md](https://github.com/rui314/9cc/blob/master/README.md) of [9cc](https://github.com/rui314/9cc).

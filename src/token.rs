@@ -19,6 +19,7 @@ pub enum TokenType {
     Str(String, usize), // String literal. (str, len)
     CharLiteral(String), // Char literal.
     Ident(String), // Identifier
+    Param(usize), // Function-like macro parameter
     Arrow, // ->
     Extern, // "extern"
     Typedef, // "typedef"
@@ -157,10 +158,28 @@ lazy_static! {
 #[derive(Debug, Clone)]
 pub struct Token {
     pub ty: TokenType, // Token type
+
+    // For preprocessor
+    pub stringize: bool,
+
     // For error reporting
     pub buf: Arc<Vec<char>>,
     pub filename: String,
     pub start: usize,
+    pub end: usize,
+}
+
+impl Default for Token {
+    fn default() -> Token {
+        Token {
+            ty: TokenType::Int,
+            buf: Arc::new(vec![]),
+            filename: "".to_string(),
+            start: 0,
+            end: 0,
+            stringize: false,
+        }
+    }
 }
 
 impl Token {
@@ -170,7 +189,12 @@ impl Token {
             buf: BUF.lock().unwrap().clone(),
             filename: FILE_NAME.lock().unwrap().clone(),
             start,
+            ..Default::default()
         }
+    }
+
+    pub fn tokstr(&self) -> String {
+        self.buf[self.start..self.end].into_iter().collect()
     }
 }
 
@@ -308,7 +332,9 @@ fn char_literal(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) -> char
     }
 
     *pos += 1;
-    tokens.push(Token::new(TokenType::Num(result as u8 as i32), *pos - 1));
+    let mut t = Token::new(TokenType::Num(result as u8 as i32), *pos - 1);
+    t.end = *pos + 1;
+    tokens.push(t);
     return result;
 }
 
@@ -321,8 +347,9 @@ fn string_literal(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
         if c2 == &'"' {
             len += 1;
             *pos += len;
-            let token = Token::new(TokenType::Str(sb, len), *pos - len - 1);
-            tokens.push(token);
+            let mut t = Token::new(TokenType::Str(sb, len), *pos - len - 1);
+            t.end = *pos + 1;
+            tokens.push(t);
             return;
         }
 
@@ -360,13 +387,14 @@ fn ident(
 
     let name: String = p[*pos..*pos + len].into_iter().collect();
     *pos += len;
-    let token;
+    let mut t;
     if let Some(keyword) = keywords.get(&name) {
-        token = Token::new(keyword.clone(), *pos - len);
+        t = Token::new(keyword.clone(), *pos - len);
     } else {
-        token = Token::new(TokenType::Ident(name.clone()), *pos - len);
+        t = Token::new(TokenType::Ident(name.clone()), *pos - len);
     }
-    tokens.push(token);
+    t.end = *pos;
+    tokens.push(t);
 }
 
 fn parse_number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>, base: u32) {
@@ -381,8 +409,9 @@ fn parse_number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>, base: u
             break;
         }
     }
-    let token = Token::new(TokenType::Num(sum as i32), *pos - len);
-    tokens.push(token);
+    let mut t = Token::new(TokenType::Num(sum as i32), *pos - len);
+    t.end = *pos;
+    tokens.push(t);
 }
 
 fn number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
@@ -393,7 +422,6 @@ fn number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
             parse_number(p, pos, tokens, 16);
         }
         Some(&['0', _]) => {
-            *pos += 1;
             parse_number(p, pos, tokens, 8);
         }
         _ => parse_number(p, pos, tokens, 10),
@@ -462,16 +490,19 @@ fn scan(p: &Vec<char>, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
                 continue;
             }
 
-            tokens.push(Token::new(symbol.ty.clone(), pos));
+            let mut t = Token::new(symbol.ty.clone(), pos);
             pos += len;
+            t.end = pos;
+            tokens.push(t);
             continue 'outer;
         }
 
         // Single-letter symbol
         if let Some(ty) = TokenType::new_single_letter(c) {
-            let token = Token::new(ty, pos);
+            let mut t = Token::new(ty, pos);
             pos += 1;
-            tokens.push(token);
+            t.end = pos;
+            tokens.push(t);
             continue;
         };
 

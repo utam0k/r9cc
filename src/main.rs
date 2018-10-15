@@ -40,7 +40,7 @@ fn main() {
         path = args[1].clone();
     }
 
-    let mut context = preprocess::Context::new(vec![].into_iter());
+    let mut context = preprocess::Context::new();
 
     // Tokenize and parse.
     let tokens = tokenize(path, &mut context);

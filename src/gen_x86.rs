@@ -19,7 +19,7 @@ lazy_static! {
     static ref LABEL: Mutex<usize> = Mutex::new(0);
 }
 
-fn blackslash_escape(s: String, len: usize) -> String {
+fn backslash_escape(s: String, len: usize) -> String {
     let mut sb = String::new();
     for i in 0..len {
         if let Some(c) = s.chars().collect::<Vec<char>>().get(i) {
@@ -43,11 +43,14 @@ fn blackslash_escape(s: String, len: usize) -> String {
             } else {
                 sb.push_str(&format!("\\{:o}", c.clone() as i8));
             }
+            if i == len - 1 {
+                sb.push_str("\\000");
+            }
         } else {
             sb.push_str("\\000");
         }
     }
-    return sb;
+    sb
 }
 
 macro_rules! emit{
@@ -214,7 +217,7 @@ pub fn gen_x86(globals: Vec<Var>, fns: Vec<Function>) {
                 continue;
             }
             print!("{}:\n", var.name);
-            emit!(".ascii \"{}\"", blackslash_escape(data, len));
+            emit!(".ascii \"{}\"", backslash_escape(data, len));
             continue;
         }
         unreachable!();

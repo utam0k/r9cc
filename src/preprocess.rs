@@ -135,6 +135,13 @@ impl Macro {
     }
 }
 
+fn is_ident(t: &Token, s: &str) -> bool {
+    match t.ty {
+        TokenType::Ident(ref name) => name == s,
+        _ => false,
+    }
+}
+
 fn replace_params(m: &mut Macro) {
     match m.ty {
         MacroType::Funclike(ref params) => {
@@ -196,15 +203,15 @@ fn read_one_arg(ctx: &mut Context) -> Vec<Token> {
             if t.ty == TokenType::RightParen || t.ty == TokenType::Comma {
                 return v;
             }
-
-            ctx.next();
-            if t.ty == TokenType::LeftParen {
-                level += 1;
-            } else if t.ty == TokenType::RightParen {
-                level -= 1;
-            }
-            v.push(t);
         }
+
+        ctx.next();
+        if t.ty == TokenType::LeftParen {
+            level += 1;
+        } else if t.ty == TokenType::RightParen {
+            level -= 1;
+        }
+        v.push(t);
     }
     bad_token(&start, msg);
 }
@@ -236,7 +243,7 @@ fn stringize(tokens: &Vec<Token>) -> Token {
     Token::new(TokenType::Str(sb, len), 0)
 }
 
-fn apply(m: Macro, ctx: &mut Context) -> Vec<Token> {
+fn apply(m: Macro, start: &Token, ctx: &mut Context) -> Vec<Token> {
     match m.ty {
         MacroType::Objlike => m.tokens,
         MacroType::Funclike(ref params) => {
@@ -244,10 +251,15 @@ fn apply(m: Macro, ctx: &mut Context) -> Vec<Token> {
             ctx.get(TokenType::LeftParen, "comma expected");
             let mut args = read_args(ctx);
             if params.len() != args.len() {
-                bad_token(&ctx.peek().unwrap(), "number of parameter does not match");
+                bad_token(start, "number of parameter does not match");
             }
 
             for t in m.tokens {
+                if is_ident(&t, "__LINE__") {
+                    v.push(Token::new(TokenType::Num(t.line() as i32), 0));
+                    continue;
+                }
+
                 match t.ty {
                     TokenType::Param(val) => {
                         if t.stringize {
@@ -315,7 +327,7 @@ pub fn preprocess(tokens: Vec<Token>, ctx: &mut Context) -> Vec<Token> {
         }
         if let Some(name) = macro_name {
             if let Some(m) = ctx.macros.get(&name).cloned() {
-                v.append(&mut apply(m, ctx));
+                v.append(&mut apply(m, &t, ctx));
             } else {
                 v.push(t);
             }

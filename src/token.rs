@@ -196,6 +196,10 @@ impl Token {
     pub fn tokstr(&self) -> String {
         self.buf[self.start..self.end].into_iter().collect()
     }
+
+    pub fn line(&self) -> usize {
+        self.buf[..self.end].iter().filter(|c| *c == &'\n').count()
+    }
 }
 
 // Error reporting
@@ -439,8 +443,10 @@ fn scan(p: &Vec<char>, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
     'outer: while let Some(c) = p.get(pos) {
         // New line (preprocessor-only token)
         if c == &'\n' {
-            tokens.push(Token::new(TokenType::NewLine, pos));
+            let mut t = Token::new(TokenType::NewLine, pos);
             pos += 1;
+            t.end = pos;
+            tokens.push(t);
             continue;
         }
 
@@ -594,7 +600,6 @@ pub fn tokenize(path: String, ctx: &mut preprocess::Context) -> Vec<Token> {
 
     canonicalize_newline(&mut buf);
     remove_backslash_newline(&mut buf);
-
 
     let mut tokens = scan(&buf, &keyword_map());
 

@@ -197,7 +197,7 @@ impl Token {
         self.buf[self.start..self.end].into_iter().collect()
     }
 
-    pub fn line(&self) -> usize {
+    pub fn get_line_number(&self) -> usize {
         self.buf[..self.end].iter().filter(|c| *c == &'\n').count()
     }
 }
@@ -543,14 +543,28 @@ fn canonicalize_newline(p: &mut Vec<char>) {
     }
 }
 
+// Quoted from 9cc
+// > Concatenates continuation lines. We keep the total number of
+// > newline characters the same to keep the line counter sane.
 fn remove_backslash_newline(p: &mut Vec<char>) {
     let mut pos = 0;
+    let mut cnt = 0;
     while pos < p.len() {
         if p[pos] == '\\' && p[pos + 1] == '\n' {
+            cnt += 1;
             p.remove(pos);
             p.remove(pos);
+            pos += 1;
+        } else if p[pos] == '\n' {
+            for _ in 0..cnt {
+                p.insert(pos, '\n');
+                pos += 1;
+            }
+            pos += 1;
+            cnt = 0;
+        } else {
+            pos += 1;
         }
-        pos += 1;
     }
 }
 
@@ -560,15 +574,11 @@ fn append(x_str: &String, y_str: &String, start: usize) -> Token {
     return Token::new(TokenType::Str(concated, l), start);
 }
 
-fn strip_newlines(tokens: Vec<Token>) -> Vec<Token> {
-    let mut v: Vec<Token> = vec![];
-
-    for t in tokens.into_iter() {
-        if t.ty != TokenType::NewLine {
-            v.push(t);
-        }
-    }
-    v
+fn strip_newlines_tokens(tokens: Vec<Token>) -> Vec<Token> {
+    tokens
+        .into_iter()
+        .filter(|t| t.ty != TokenType::NewLine)
+        .collect()
 }
 
 fn join_string_literals(tokens: Vec<Token>) -> Vec<Token> {
@@ -604,6 +614,6 @@ pub fn tokenize(path: String, ctx: &mut preprocess::Context) -> Vec<Token> {
     let mut tokens = scan(&buf, &keyword_map());
 
     tokens = preprocess::preprocess(tokens, ctx);
-    tokens = strip_newlines(tokens);
+    tokens = strip_newlines_tokens(tokens);
     join_string_literals(tokens)
 }

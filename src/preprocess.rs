@@ -256,7 +256,7 @@ fn apply(m: Macro, start: &Token, ctx: &mut Context) -> Vec<Token> {
 
             for t in m.tokens {
                 if is_ident(&t, "__LINE__") {
-                    v.push(Token::new(TokenType::Num(t.line() as i32), 0));
+                    v.push(Token::new(TokenType::Num(t.get_line_number() as i32), 0));
                     continue;
                 }
 

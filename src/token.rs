@@ -158,7 +158,7 @@ pub struct Token {
 
     // For error reporting
     pub buf: Rc<Vec<char>>,
-    pub filename: String,
+    pub filename: Rc<String>,
     pub start: usize,
     pub end: usize,
 }
@@ -168,7 +168,7 @@ impl Default for Token {
         Token {
             ty: TokenType::Int,
             buf: Rc::new(vec![]),
-            filename: "".to_string(),
+            filename: Rc::new("".to_string()),
             start: 0,
             end: 0,
             stringize: false,
@@ -177,7 +177,7 @@ impl Default for Token {
 }
 
 impl Token {
-    pub fn new(ty: TokenType, start: usize, filename: String, buf: Rc<Vec<char>>) -> Self {
+    pub fn new(ty: TokenType, start: usize, filename: Rc<String>, buf: Rc<Vec<char>>) -> Self {
         Token {
             ty,
             buf,
@@ -202,13 +202,13 @@ struct Tokenizer {
     tokens: Vec<Token>,
 
     // Error reporting
-    filename: String,
+    filename: Rc<String>,
 }
 
 impl Tokenizer {
-    pub fn new(filename: String) -> Self {
+    pub fn new(filename: Rc<String>) -> Self {
         Tokenizer {
-            p: Rc::new(read_file(filename.clone()).chars().collect()),
+            p: Rc::new(read_file(&filename).chars().collect()),
             filename: filename,
             pos: 0,
             tokens: vec![],
@@ -536,10 +536,10 @@ fn escaped(c: &char) -> Option<char> {
     }
 }
 
-fn read_file(filename: String) -> String {
+fn read_file(filename: &String) -> String {
     let mut input = String::new();
     let mut fp = io::stdin();
-    if filename != "-".to_string() {
+    if filename != &"-".to_string() {
         let mut fp = File::open(filename).expect("file not found");
         fp.read_to_string(&mut input).expect(
             "something went wrong reading the file",
@@ -583,7 +583,7 @@ fn append(
     x_str: &String,
     y_str: &String,
     start: usize,
-    filename: String,
+    filename: Rc<String>,
     buf: Rc<Vec<char>>,
 ) -> Token {
     let concated = format!("{}{}", x_str, y_str);
@@ -615,7 +615,7 @@ fn join_string_literals(tokens: Vec<Token>) -> Vec<Token> {
 }
 
 pub fn tokenize(path: String, ctx: &mut preprocess::Context) -> Vec<Token> {
-    let mut tokenizer = Tokenizer::new(path.clone());
+    let mut tokenizer = Tokenizer::new(Rc::new(path));
     tokenizer.canonicalize_newline();
     tokenizer.remove_backslash_newline();
     let mut tokens = tokenizer.scan(&keyword_map());

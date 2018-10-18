@@ -235,7 +235,7 @@ fn read_args(ctx: &mut Context) -> Vec<Vec<Token>> {
     v
 }
 
-fn stringize(tokens: &Vec<Token>, filename: String, buf: Rc<Vec<char>>) -> Token {
+fn stringize(tokens: &Vec<Token>, filename: Rc<String>, buf: Rc<Vec<char>>) -> Token {
     let mut sb = String::new();
     for i in 0..tokens.len() {
         let t = &tokens[i];

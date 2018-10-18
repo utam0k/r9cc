@@ -1,16 +1,10 @@
 use preprocess;
 
-use std::sync::{Mutex, Arc};
+use std::rc::Rc;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
-
-lazy_static!  {
-    static ref FILE_NAME: Mutex<String> = Mutex::new(String::new());
-    static ref BUF: Mutex<Arc<Vec<char>>> = Mutex::new(Arc::new(vec![]));
-}
-
 
 // Tokenizer
 #[derive(Debug, PartialEq, Clone)]
@@ -163,7 +157,7 @@ pub struct Token {
     pub stringize: bool,
 
     // For error reporting
-    pub buf: Arc<Vec<char>>,
+    pub buf: Rc<Vec<char>>,
     pub filename: String,
     pub start: usize,
     pub end: usize,
@@ -173,7 +167,7 @@ impl Default for Token {
     fn default() -> Token {
         Token {
             ty: TokenType::Int,
-            buf: Arc::new(vec![]),
+            buf: Rc::new(vec![]),
             filename: "".to_string(),
             start: 0,
             end: 0,
@@ -183,11 +177,11 @@ impl Default for Token {
 }
 
 impl Token {
-    pub fn new(ty: TokenType, start: usize) -> Self {
+    pub fn new(ty: TokenType, start: usize, filename: String, buf: Rc<Vec<char>>) -> Self {
         Token {
             ty,
-            buf: BUF.lock().unwrap().clone(),
-            filename: FILE_NAME.lock().unwrap().clone(),
+            buf,
+            filename,
             start,
             ..Default::default()
         }
@@ -202,9 +196,286 @@ impl Token {
     }
 }
 
-// Error reporting
-lazy_static!{
-    static ref INPUT_FILE: Mutex<Vec<char>> = Mutex::new(vec![]);
+struct Tokenizer {
+    p: Rc<Vec<char>>,
+    pos: usize,
+    tokens: Vec<Token>,
+
+    // Error reporting
+    filename: String,
+}
+
+impl Tokenizer {
+    pub fn new(filename: String) -> Self {
+        Tokenizer {
+            p: Rc::new(read_file(filename.clone()).chars().collect()),
+            filename: filename,
+            pos: 0,
+            tokens: vec![],
+        }
+    }
+
+    fn new_token(&self, ty: TokenType) -> Token {
+        Token::new(ty, self.pos, self.filename.clone(), self.p.clone())
+    }
+
+    fn block_comment(&mut self) {
+        self.pos += 2;
+        loop {
+            let two_char = self.p.get(self.pos..self.pos + 2).expect(
+                "unclosed comment",
+            );
+            self.pos += 1;
+            if two_char == &['*', '/'] {
+                self.pos += 1;
+                return;
+            }
+        }
+    }
+
+    fn char_literal(&mut self) -> char {
+        self.pos += 1;
+        let result: char;
+        let c = self.p.get(self.pos).expect("premature end of input");
+        if c != &'\\' {
+            result = c.clone();
+            self.pos += 1;
+        } else {
+            self.pos += 1;
+            let c2 = self.p.get(self.pos).unwrap();
+            result = if let Some(esc) = escaped(c2) {
+                esc
+            } else {
+                c2.clone()
+            };
+            self.pos += 1;
+        }
+
+        if self.p.get(self.pos) != Some(&'\'') {
+            panic!("unclosed character literal");
+        }
+
+        let mut t = self.new_token(TokenType::Num(result as u8 as i32));
+        self.pos += 1;
+        t.end = self.pos + 1;
+        self.tokens.push(t);
+        return result;
+    }
+
+    fn string_literal(&mut self) {
+        self.pos += 1;
+        let mut sb = String::new();
+        let mut len = 0;
+        loop {
+            let mut c2 = self.p.get(self.pos + len).expect("PREMATURE end of input");
+            if c2 == &'"' {
+                len += 1;
+                self.pos += len;
+                let mut t = self.new_token(TokenType::Str(sb, len));
+                t.start = self.pos - len - 1;
+                t.end = self.pos + 1;
+                self.tokens.push(t);
+                return;
+            }
+
+            if c2 != &'\\' {
+                len += 1;
+                sb.push(c2.clone());
+                continue;
+            }
+
+            len += 1;
+            c2 = self.p.get(self.pos + len).unwrap();
+            if let Some(esc) = escaped(c2) {
+                sb.push(esc);
+            } else {
+                sb.push(c2.clone());
+            }
+            len += 1;
+        }
+    }
+
+    fn ident(&mut self, keywords: &HashMap<String, TokenType>) {
+        let mut len = 1;
+        while let Some(c2) = self.p.get(self.pos + len) {
+            if c2.is_alphabetic() || c2.is_ascii_digit() || c2 == &'_' {
+                len += 1;
+                continue;
+            }
+            break;
+        }
+
+        let name: String = self.p[self.pos..self.pos + len].into_iter().collect();
+        let mut t;
+        if let Some(keyword) = keywords.get(&name) {
+            t = self.new_token(keyword.clone());
+        } else {
+            t = self.new_token(TokenType::Ident(name.clone()));
+        }
+        self.pos += len;
+        t.end = self.pos;
+        self.tokens.push(t);
+    }
+
+    fn parse_number(&mut self, base: u32) {
+        let mut sum: i32 = 0;
+        let mut len = 0;
+        for c in self.p[self.pos..].iter() {
+            if let Some(val) = c.to_digit(base) {
+                sum = sum * base as i32 + val as i32;
+                len += 1;
+            } else {
+                break;
+            }
+        }
+        let mut t = self.new_token(TokenType::Num(sum as i32));
+        self.pos += len;
+        t.end = self.pos;
+        self.tokens.push(t);
+    }
+
+    fn number(&mut self) {
+        match self.p.get(self.pos..self.pos + 2) {
+            Some(&['0', 'x']) |
+            Some(&['0', 'X']) => {
+                self.pos += 2;
+                self.parse_number(16);
+            }
+            Some(&['0', _]) => {
+                self.parse_number(8);
+            }
+            _ => self.parse_number(10),
+        }
+    }
+
+    fn scan(&mut self, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
+        'outer: while let Some(c) = self.p.get(self.pos).cloned() {
+            // New line (preprocessor-only token)
+            if c == '\n' {
+                let mut t = self.new_token(TokenType::NewLine);
+                self.pos += 1;
+                t.end = self.pos;
+                self.tokens.push(t);
+                continue;
+            }
+
+            // Skip whitespce
+            if c.is_whitespace() {
+                self.pos += 1;
+                continue;
+            }
+
+            // Line comment
+            if self.p.get(self.pos..self.pos + 2) == Some(&['/', '/']) {
+                while self.p.get(self.pos) != Some(&'\n') {
+                    self.pos += 1;
+                }
+                continue;
+            }
+
+            // Block comment
+            if self.p.get(self.pos..self.pos + 2) == Some(&['/', '*']) {
+                self.block_comment();
+                continue;
+            }
+
+            // Character literal
+            if c == '\'' {
+                self.char_literal();
+                continue;
+            }
+
+
+            // String literal
+            if c == '"' {
+                self.string_literal();
+                continue;
+            }
+
+            // Multi-letter symbol
+            for symbol in SYMBOLS.iter() {
+                let name = symbol.name;
+                let len = name.len();
+                if self.pos + len > self.p.len() {
+                    continue;
+                }
+
+                let first = &self.p[self.pos..self.pos + len];
+                if name.to_string() != first.into_iter().collect::<String>() {
+                    continue;
+                }
+
+                let mut t = self.new_token(symbol.ty.clone());
+                self.pos += len;
+                t.end = self.pos;
+                self.tokens.push(t);
+                continue 'outer;
+            }
+
+            // Single-letter symbol
+            if let Some(ty) = TokenType::new_single_letter(&c) {
+                let mut t = self.new_token(ty);
+                self.pos += 1;
+                t.end = self.pos;
+                self.tokens.push(t);
+                continue;
+            };
+
+            // Keyword or identifier
+            if c.is_alphabetic() || c == '_' {
+                self.ident(&keywords);
+                continue;
+            }
+
+            // Number
+            if c.is_ascii_digit() {
+                self.number();
+                continue;
+            }
+
+            panic!(
+                "cannot tokenize: {:?}\n",
+                self.p[self.pos..].into_iter().collect::<String>()
+            );
+        }
+        self.tokens.clone()
+    }
+
+    fn canonicalize_newline(&mut self) {
+        let mut pos = 0;
+        while pos < self.p.len() {
+            if self.p[pos] == '\r' && self.p[pos + 1] == '\n' {
+                Rc::get_mut(&mut self.p).unwrap().remove(pos);
+                Rc::get_mut(&mut self.p).unwrap().remove(pos);
+            }
+            pos += 1;
+        }
+    }
+
+    // Quoted from 9cc
+    // > Concatenates continuation lines. We keep the total number of
+    // > newline characters the same to keep the line counter sane.
+    fn remove_backslash_newline(&mut self) {
+        let mut pos = 0;
+        let mut cnt = 0;
+        while pos < self.p.len() {
+            if self.p[pos] == '\\' && self.p[pos + 1] == '\n' {
+                cnt += 1;
+                Rc::get_mut(&mut self.p).unwrap().remove(pos);
+                Rc::get_mut(&mut self.p).unwrap().remove(pos);
+                pos += 1;
+            } else if self.p[pos] == '\n' {
+                for _ in 0..cnt {
+                    Rc::get_mut(&mut self.p).unwrap().insert(pos, '\n');
+                    pos += 1;
+                }
+                pos += 1;
+                cnt = 0;
+            } else {
+                pos += 1;
+            }
+        }
+    }
 }
 
 // Finds a line pointed by a given pointer from the input file
@@ -301,284 +572,23 @@ fn keyword_map() -> HashMap<String, TokenType> {
     map
 }
 
-fn block_comment(p: &Vec<char>, pos: &mut usize) {
-    *pos += 2;
-    loop {
-        let two_char = p.get(*pos..*pos + 2).expect("unclosed comment");
-        *pos += 1;
-        if two_char == &['*', '/'] {
-            *pos += 1;
-            return;
-        }
-    }
-}
-
-fn char_literal(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) -> char {
-    *pos += 1;
-    let result: char;
-    let c = p.get(*pos).expect("premature end of input");
-    if c != &'\\' {
-        result = c.clone();
-        *pos += 1;
-    } else {
-        *pos += 1;
-        let c2 = p.get(*pos).unwrap();
-        result = if let Some(esc) = escaped(c2) {
-            esc
-        } else {
-            c2.clone()
-        };
-        *pos += 1;
-    }
-
-    if p.get(*pos) != Some(&'\'') {
-        panic!("unclosed character literal");
-    }
-
-    *pos += 1;
-    let mut t = Token::new(TokenType::Num(result as u8 as i32), *pos - 1);
-    t.end = *pos + 1;
-    tokens.push(t);
-    return result;
-}
-
-fn string_literal(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
-    *pos += 1;
-    let mut sb = String::new();
-    let mut len = 0;
-    loop {
-        let mut c2 = p.get(*pos + len).expect("PREMATURE end of input");
-        if c2 == &'"' {
-            len += 1;
-            *pos += len;
-            let mut t = Token::new(TokenType::Str(sb, len), *pos - len - 1);
-            t.end = *pos + 1;
-            tokens.push(t);
-            return;
-        }
-
-        if c2 != &'\\' {
-            len += 1;
-            sb.push(c2.clone());
-            continue;
-        }
-
-        len += 1;
-        c2 = p.get(*pos + len).unwrap();
-        if let Some(esc) = escaped(c2) {
-            sb.push(esc);
-        } else {
-            sb.push(c2.clone());
-        }
-        len += 1;
-    }
-}
-
-fn ident(
-    p: &Vec<char>,
-    keywords: &HashMap<String, TokenType>,
-    pos: &mut usize,
-    tokens: &mut Vec<Token>,
-) {
-    let mut len = 1;
-    while let Some(c2) = p.get(*pos + len) {
-        if c2.is_alphabetic() || c2.is_ascii_digit() || c2 == &'_' {
-            len += 1;
-            continue;
-        }
-        break;
-    }
-
-    let name: String = p[*pos..*pos + len].into_iter().collect();
-    *pos += len;
-    let mut t;
-    if let Some(keyword) = keywords.get(&name) {
-        t = Token::new(keyword.clone(), *pos - len);
-    } else {
-        t = Token::new(TokenType::Ident(name.clone()), *pos - len);
-    }
-    t.end = *pos;
-    tokens.push(t);
-}
-
-fn parse_number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>, base: u32) {
-    let mut sum: i32 = 0;
-    let mut len = 0;
-    for c in p[*pos..].iter() {
-        if let Some(val) = c.to_digit(base) {
-            sum = sum * base as i32 + val as i32;
-            *pos += 1;
-            len += 1;
-        } else {
-            break;
-        }
-    }
-    let mut t = Token::new(TokenType::Num(sum as i32), *pos - len);
-    t.end = *pos;
-    tokens.push(t);
-}
-
-fn number(p: &Vec<char>, pos: &mut usize, tokens: &mut Vec<Token>) {
-    match p.get(*pos..*pos + 2) {
-        Some(&['0', 'x']) |
-        Some(&['0', 'X']) => {
-            *pos += 2;
-            parse_number(p, pos, tokens, 16);
-        }
-        Some(&['0', _]) => {
-            parse_number(p, pos, tokens, 8);
-        }
-        _ => parse_number(p, pos, tokens, 10),
-    }
-}
-
-// Tokenized input is stored to this vec.
-fn scan(p: &Vec<char>, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
-    *BUF.lock().unwrap() = Arc::new(p.clone());
-
-    let mut tokens: Vec<Token> = vec![];
-
-    let mut pos = 0;
-
-    'outer: while let Some(c) = p.get(pos) {
-        // New line (preprocessor-only token)
-        if c == &'\n' {
-            let mut t = Token::new(TokenType::NewLine, pos);
-            pos += 1;
-            t.end = pos;
-            tokens.push(t);
-            continue;
-        }
-
-        // Skip whitespce
-        if c.is_whitespace() {
-            pos += 1;
-            continue;
-        }
-
-        // Line comment
-        if p.get(pos..pos + 2) == Some(&['/', '/']) {
-            while p.get(pos) != Some(&'\n') {
-                pos += 1;
-            }
-            continue;
-        }
-
-        // Block comment
-        if p.get(pos..pos + 2) == Some(&['/', '*']) {
-            block_comment(&p, &mut pos);
-            continue;
-        }
-
-        // Character literal
-        if c == &'\'' {
-            char_literal(&p, &mut pos, &mut tokens);
-            continue;
-        }
-
-
-        // String literal
-        if c == &'"' {
-            string_literal(&p, &mut pos, &mut tokens);
-            continue;
-        }
-
-        // Multi-letter symbol
-        for symbol in SYMBOLS.iter() {
-            let name = symbol.name;
-            let len = name.len();
-            if pos + len > p.len() {
-                continue;
-            }
-
-            let first = &p[pos..pos + len];
-            if name.to_string() != first.into_iter().collect::<String>() {
-                continue;
-            }
-
-            let mut t = Token::new(symbol.ty.clone(), pos);
-            pos += len;
-            t.end = pos;
-            tokens.push(t);
-            continue 'outer;
-        }
-
-        // Single-letter symbol
-        if let Some(ty) = TokenType::new_single_letter(c) {
-            let mut t = Token::new(ty, pos);
-            pos += 1;
-            t.end = pos;
-            tokens.push(t);
-            continue;
-        };
-
-        // Keyword or identifier
-        if c.is_alphabetic() || c == &'_' {
-            ident(&p, &keywords, &mut pos, &mut tokens);
-            continue;
-        }
-
-        // Number
-        if c.is_ascii_digit() {
-            number(&p, &mut pos, &mut tokens);
-            continue;
-        }
-
-        panic!(
-            "cannot tokenize: {:?}\n",
-            p[pos..].into_iter().collect::<String>()
-        );
-    }
-    tokens
-}
-
-fn canonicalize_newline(p: &mut Vec<char>) {
-    let mut pos = 0;
-    while pos < p.len() {
-        if p[pos] == '\r' && p[pos + 1] == '\n' {
-            p.remove(pos);
-            p.remove(pos);
-        }
-        pos += 1;
-    }
-}
-
-// Quoted from 9cc
-// > Concatenates continuation lines. We keep the total number of
-// > newline characters the same to keep the line counter sane.
-fn remove_backslash_newline(p: &mut Vec<char>) {
-    let mut pos = 0;
-    let mut cnt = 0;
-    while pos < p.len() {
-        if p[pos] == '\\' && p[pos + 1] == '\n' {
-            cnt += 1;
-            p.remove(pos);
-            p.remove(pos);
-            pos += 1;
-        } else if p[pos] == '\n' {
-            for _ in 0..cnt {
-                p.insert(pos, '\n');
-                pos += 1;
-            }
-            pos += 1;
-            cnt = 0;
-        } else {
-            pos += 1;
-        }
-    }
-}
-
-fn append(x_str: &String, y_str: &String, start: usize) -> Token {
-    let concated = format!("{}{}", x_str, y_str);
-    let l = concated.len() + 1; // Because `+1` has `\0`.
-    return Token::new(TokenType::Str(concated, l), start);
-}
-
 fn strip_newlines_tokens(tokens: Vec<Token>) -> Vec<Token> {
     tokens
         .into_iter()
         .filter(|t| t.ty != TokenType::NewLine)
         .collect()
+}
+
+fn append(
+    x_str: &String,
+    y_str: &String,
+    start: usize,
+    filename: String,
+    buf: Rc<Vec<char>>,
+) -> Token {
+    let concated = format!("{}{}", x_str, y_str);
+    let l = concated.len() + 1; // Because `+1` has `\0`.
+    Token::new(TokenType::Str(concated, l), start, filename, buf)
 }
 
 fn join_string_literals(tokens: Vec<Token>) -> Vec<Token> {
@@ -589,7 +599,7 @@ fn join_string_literals(tokens: Vec<Token>) -> Vec<Token> {
         if let Some(ref last) = last_may {
             match (&last.ty, &t.ty) {
                 (TokenType::Str(ref last_str, _), TokenType::Str(ref t_str, _)) => {
-                    let new = append(last_str, t_str, last.start);
+                    let new = append(last_str, t_str, last.start, t.filename, t.buf);
                     v.pop();
                     v.push(new);
                     continue;
@@ -605,13 +615,10 @@ fn join_string_literals(tokens: Vec<Token>) -> Vec<Token> {
 }
 
 pub fn tokenize(path: String, ctx: &mut preprocess::Context) -> Vec<Token> {
-    *FILE_NAME.lock().unwrap() = path.clone();
-    let mut buf = read_file(path).chars().collect();
-
-    canonicalize_newline(&mut buf);
-    remove_backslash_newline(&mut buf);
-
-    let mut tokens = scan(&buf, &keyword_map());
+    let mut tokenizer = Tokenizer::new(path.clone());
+    tokenizer.canonicalize_newline();
+    tokenizer.remove_backslash_newline();
+    let mut tokens = tokenizer.scan(&keyword_map());
 
     tokens = preprocess::preprocess(tokens, ctx);
     tokens = strip_newlines_tokens(tokens);

@@ -3,6 +3,7 @@
 use token::{Token, TokenType, bad_token, tokenize};
 
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::mem;
 
 pub struct Context {
@@ -157,7 +158,12 @@ fn replace_params(m: &mut Macro) {
                     TokenType::Ident(ref name) => {
                         if let Some(n) = map.get(name) {
                             if let Some(elem) = m.tokens.get_mut(i) {
-                                *elem = Token::new(TokenType::Param(n.clone()), 0);
+                                *elem = Token::new(
+                                    TokenType::Param(n.clone()),
+                                    0,
+                                    t.filename.clone(),
+                                    t.buf.clone(),
+                                );
                             }
                         } else {
                             continue;
@@ -229,7 +235,7 @@ fn read_args(ctx: &mut Context) -> Vec<Vec<Token>> {
     v
 }
 
-fn stringize(tokens: &Vec<Token>) -> Token {
+fn stringize(tokens: &Vec<Token>, filename: String, buf: Rc<Vec<char>>) -> Token {
     let mut sb = String::new();
     for i in 0..tokens.len() {
         let t = &tokens[i];
@@ -240,7 +246,7 @@ fn stringize(tokens: &Vec<Token>) -> Token {
     }
 
     let len = sb.len();
-    Token::new(TokenType::Str(sb, len), 0)
+    Token::new(TokenType::Str(sb, len), 0, filename, buf)
 }
 
 fn apply(m: Macro, start: &Token, ctx: &mut Context) -> Vec<Token> {
@@ -256,14 +262,19 @@ fn apply(m: Macro, start: &Token, ctx: &mut Context) -> Vec<Token> {
 
             for t in m.tokens {
                 if is_ident(&t, "__LINE__") {
-                    v.push(Token::new(TokenType::Num(t.get_line_number() as i32), 0));
+                    v.push(Token::new(
+                        TokenType::Num(t.get_line_number() as i32),
+                        0,
+                        t.filename,
+                        t.buf,
+                    ));
                     continue;
                 }
 
                 match t.ty {
                     TokenType::Param(val) => {
                         if t.stringize {
-                            v.push(stringize(&args[val]));
+                            v.push(stringize(&args[val], t.filename, t.buf));
                         } else {
                             v.append(&mut args[val].clone());
                         }

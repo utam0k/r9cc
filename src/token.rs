@@ -6,6 +6,18 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 
+pub fn tokenize(path: String, ctx: &mut preprocess::Context) -> Vec<Token> {
+    let mut tokenizer = Tokenizer::new(Rc::new(path));
+    tokenizer.canonicalize_newline();
+    tokenizer.remove_backslash_newline();
+    tokenizer.scan(&keyword_map());
+
+    tokenizer.tokens = preprocess::preprocess(tokenizer.tokens, ctx);
+    tokenizer.strip_newlines_tokens();
+    tokenizer.join_string_literals();
+    tokenizer.tokens
+}
+
 // Tokenizer
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
@@ -476,6 +488,48 @@ impl Tokenizer {
             }
         }
     }
+
+    fn append(&mut self, x_str: &String, y_str: &String, start: usize) -> Token {
+        let concated = format!("{}{}", x_str, y_str);
+        let l = concated.len() + 1; // Because `+1` has `\0`.
+        Token::new(
+            TokenType::Str(concated, l),
+            start,
+            self.filename.clone(),
+            self.p.clone(),
+        )
+    }
+
+    fn join_string_literals(&mut self) {
+        let mut v = vec![];
+        let mut last_may: Option<Token> = None;
+
+        for mut t in self.tokens.clone().into_iter() {
+            if let Some(ref last) = last_may {
+                match (&last.ty, &t.ty) {
+                    (TokenType::Str(ref last_str, _), TokenType::Str(ref t_str, _)) => {
+                        let new = self.append(last_str, t_str, last.start);
+                        v.pop();
+                        v.push(new);
+                        continue;
+                    }
+                    _ => (),
+                }
+            }
+
+            last_may = Some(t.clone());
+            v.push(t);
+        }
+        self.tokens = v;
+    }
+
+    fn strip_newlines_tokens(&mut self) {
+        self.tokens = self.tokens
+            .clone()
+            .into_iter()
+            .filter(|t| t.ty != TokenType::NewLine)
+            .collect()
+    }
 }
 
 // Finds a line pointed by a given pointer from the input file
@@ -570,57 +624,4 @@ fn keyword_map() -> HashMap<String, TokenType> {
     map.insert("typedef".into(), TokenType::Typedef);
     map.insert("while".into(), TokenType::While);
     map
-}
-
-fn strip_newlines_tokens(tokens: Vec<Token>) -> Vec<Token> {
-    tokens
-        .into_iter()
-        .filter(|t| t.ty != TokenType::NewLine)
-        .collect()
-}
-
-fn append(
-    x_str: &String,
-    y_str: &String,
-    start: usize,
-    filename: Rc<String>,
-    buf: Rc<Vec<char>>,
-) -> Token {
-    let concated = format!("{}{}", x_str, y_str);
-    let l = concated.len() + 1; // Because `+1` has `\0`.
-    Token::new(TokenType::Str(concated, l), start, filename, buf)
-}
-
-fn join_string_literals(tokens: Vec<Token>) -> Vec<Token> {
-    let mut v = vec![];
-    let mut last_may: Option<Token> = None;
-
-    for mut t in tokens.into_iter() {
-        if let Some(ref last) = last_may {
-            match (&last.ty, &t.ty) {
-                (TokenType::Str(ref last_str, _), TokenType::Str(ref t_str, _)) => {
-                    let new = append(last_str, t_str, last.start, t.filename, t.buf);
-                    v.pop();
-                    v.push(new);
-                    continue;
-                }
-                _ => (),
-            }
-        }
-
-        last_may = Some(t.clone());
-        v.push(t);
-    }
-    v
-}
-
-pub fn tokenize(path: String, ctx: &mut preprocess::Context) -> Vec<Token> {
-    let mut tokenizer = Tokenizer::new(Rc::new(path));
-    tokenizer.canonicalize_newline();
-    tokenizer.remove_backslash_newline();
-    let mut tokens = tokenizer.scan(&keyword_map());
-
-    tokens = preprocess::preprocess(tokens, ctx);
-    tokens = strip_newlines_tokens(tokens);
-    join_string_literals(tokens)
 }

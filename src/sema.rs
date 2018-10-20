@@ -1,7 +1,6 @@
 use parse::{Node, NodeType};
-use token::TokenType;
 use util::roundup;
-use {Ctype, Type, Scope, Var};
+use {TokenType, Ctype, Type, Scope, Var};
 
 use std::sync::Mutex;
 use std::collections::HashMap;

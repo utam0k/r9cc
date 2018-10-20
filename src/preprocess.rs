@@ -1,6 +1,7 @@
 // C preprocessor
 
-use token::{Token, TokenType, bad_token, tokenize};
+use token::{Token, bad_token, tokenize};
+use TokenType;
 
 use std::collections::HashMap;
 use std::rc::Rc;

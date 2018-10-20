@@ -11,8 +11,7 @@
 // > in a later pass.
 
 use parse::{Node, NodeType};
-use token::TokenType;
-use {Ctype, Type, Scope};
+use {TokenType, Ctype, Type, Scope};
 
 use std::sync::Mutex;
 

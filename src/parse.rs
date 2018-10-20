@@ -1,5 +1,5 @@
-use token::{Token, TokenType, bad_token};
-use {Ctype, Type, Scope};
+use token::{Token, bad_token};
+use {TokenType, Ctype, Type, Scope};
 use util::roundup;
 
 use std::sync::Mutex;

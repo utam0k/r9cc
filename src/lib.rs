@@ -15,7 +15,7 @@ extern crate lazy_static;
 
 const REGS_N: usize = 7;
 
-// Tokenizer
+// Token type
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     Num(i32), // Number literal
@@ -118,7 +118,6 @@ impl TokenType {
         }
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub enum Ctype {

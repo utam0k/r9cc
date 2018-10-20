@@ -19,46 +19,26 @@ pub fn tokenize(path: String, ctx: &mut preprocess::Context) -> Vec<Token> {
     tokenizer.tokens
 }
 
-// Tokenizer
-#[derive(Debug, Clone)]
-pub struct Symbol {
-    pub name: &'static str,
-    pub ty: TokenType,
+fn keyword_map() -> HashMap<String, TokenType> {
+    let mut map = HashMap::new();
+    map.insert("_Alignof".into(), TokenType::Alignof);
+    map.insert("break".into(), TokenType::Break);
+    map.insert("char".into(), TokenType::Char);
+    map.insert("void".into(), TokenType::Void);
+    map.insert("do".into(), TokenType::Do);
+    map.insert("else".into(), TokenType::Else);
+    map.insert("extern".into(), TokenType::Extern);
+    map.insert("for".into(), TokenType::For);
+    map.insert("if".into(), TokenType::If);
+    map.insert("int".into(), TokenType::Int);
+    map.insert("return".into(), TokenType::Return);
+    map.insert("sizeof".into(), TokenType::Sizeof);
+    map.insert("struct".into(), TokenType::Struct);
+    map.insert("typedef".into(), TokenType::Typedef);
+    map.insert("while".into(), TokenType::While);
+    map
 }
 
-impl Symbol {
-    fn new(name: &'static str, ty: TokenType) -> Self {
-        Symbol { name, ty }
-    }
-}
-
-lazy_static! {
-    static ref SYMBOLS: Vec<Symbol> = [
-        Symbol::new("<<=", TokenType::ShlEQ),
-        Symbol::new(">>=", TokenType::ShrEQ),
-        Symbol::new("!=", TokenType::NE),
-        Symbol::new("&&", TokenType::Logand),
-        Symbol::new("++", TokenType::Inc),
-        Symbol::new("--", TokenType::Dec),
-        Symbol::new("->", TokenType::Arrow),
-        Symbol::new("<<", TokenType::SHL),
-        Symbol::new("<=", TokenType::LE),
-        Symbol::new("==", TokenType::EQ),
-        Symbol::new(">=", TokenType::GE),
-        Symbol::new(">>", TokenType::SHR),
-        Symbol::new("||", TokenType::Logor),
-        Symbol::new("*=", TokenType::MulEQ),
-        Symbol::new("/=", TokenType::DivEQ),
-        Symbol::new("%=", TokenType::ModEQ),
-        Symbol::new("+=", TokenType::AddEQ),
-        Symbol::new("-=", TokenType::SubEQ),
-        Symbol::new("&=", TokenType::BitandEQ),
-        Symbol::new("^=", TokenType::XorEQ),
-        Symbol::new("|=", TokenType::BitorEQ),
-    ].to_vec();
-}
-
-// Token type
 #[derive(Debug, Clone)]
 pub struct Token {
     pub ty: TokenType, // Token type
@@ -106,6 +86,45 @@ impl Token {
     }
 }
 
+#[derive(Debug, Clone)]
+struct Symbol {
+    name: &'static str,
+    ty: TokenType,
+}
+
+impl Symbol {
+    fn new(name: &'static str, ty: TokenType) -> Self {
+        Symbol { name, ty }
+    }
+}
+
+lazy_static! {
+    static ref SYMBOLS: Vec<Symbol> = [
+        Symbol::new("<<=", TokenType::ShlEQ),
+        Symbol::new(">>=", TokenType::ShrEQ),
+        Symbol::new("!=", TokenType::NE),
+        Symbol::new("&&", TokenType::Logand),
+        Symbol::new("++", TokenType::Inc),
+        Symbol::new("--", TokenType::Dec),
+        Symbol::new("->", TokenType::Arrow),
+        Symbol::new("<<", TokenType::SHL),
+        Symbol::new("<=", TokenType::LE),
+        Symbol::new("==", TokenType::EQ),
+        Symbol::new(">=", TokenType::GE),
+        Symbol::new(">>", TokenType::SHR),
+        Symbol::new("||", TokenType::Logor),
+        Symbol::new("*=", TokenType::MulEQ),
+        Symbol::new("/=", TokenType::DivEQ),
+        Symbol::new("%=", TokenType::ModEQ),
+        Symbol::new("+=", TokenType::AddEQ),
+        Symbol::new("-=", TokenType::SubEQ),
+        Symbol::new("&=", TokenType::BitandEQ),
+        Symbol::new("^=", TokenType::XorEQ),
+        Symbol::new("|=", TokenType::BitorEQ),
+    ].to_vec();
+}
+
+// Tokenizer
 struct Tokenizer {
     p: Rc<Vec<char>>,
     pos: usize,
@@ -116,146 +135,34 @@ struct Tokenizer {
 }
 
 impl Tokenizer {
-    pub fn new(filename: Rc<String>) -> Self {
+    fn new(filename: Rc<String>) -> Self {
         Tokenizer {
-            p: Rc::new(read_file(&filename).chars().collect()),
+            p: Rc::new(Self::read_file(&filename).chars().collect()),
             filename: filename,
             pos: 0,
             tokens: vec![],
         }
     }
 
+    fn read_file(filename: &String) -> String {
+        let mut input = String::new();
+        let mut fp = io::stdin();
+        if filename != &"-".to_string() {
+            let mut fp = File::open(filename).expect("file not found");
+            fp.read_to_string(&mut input).expect(
+                "something went wrong reading the file",
+            );
+            return input;
+        }
+        fp.read_to_string(&mut input).expect(
+            "something went wrong reading the file",
+        );
+        return input;
+    }
+
+
     fn new_token(&self, ty: TokenType) -> Token {
         Token::new(ty, self.pos, self.filename.clone(), self.p.clone())
-    }
-
-    fn block_comment(&mut self) {
-        self.pos += 2;
-        loop {
-            let two_char = self.p.get(self.pos..self.pos + 2).expect(
-                "unclosed comment",
-            );
-            self.pos += 1;
-            if two_char == &['*', '/'] {
-                self.pos += 1;
-                return;
-            }
-        }
-    }
-
-    fn char_literal(&mut self) -> char {
-        self.pos += 1;
-        let result: char;
-        let c = self.p.get(self.pos).expect("premature end of input");
-        if c != &'\\' {
-            result = c.clone();
-            self.pos += 1;
-        } else {
-            self.pos += 1;
-            let c2 = self.p.get(self.pos).unwrap();
-            result = if let Some(esc) = escaped(c2) {
-                esc
-            } else {
-                c2.clone()
-            };
-            self.pos += 1;
-        }
-
-        if self.p.get(self.pos) != Some(&'\'') {
-            panic!("unclosed character literal");
-        }
-
-        let mut t = self.new_token(TokenType::Num(result as u8 as i32));
-        self.pos += 1;
-        t.end = self.pos + 1;
-        self.tokens.push(t);
-        return result;
-    }
-
-    fn string_literal(&mut self) {
-        self.pos += 1;
-        let mut sb = String::new();
-        let mut len = 0;
-        loop {
-            let mut c2 = self.p.get(self.pos + len).expect("PREMATURE end of input");
-            if c2 == &'"' {
-                len += 1;
-                self.pos += len;
-                let mut t = self.new_token(TokenType::Str(sb, len));
-                t.start = self.pos - len - 1;
-                t.end = self.pos + 1;
-                self.tokens.push(t);
-                return;
-            }
-
-            if c2 != &'\\' {
-                len += 1;
-                sb.push(c2.clone());
-                continue;
-            }
-
-            len += 1;
-            c2 = self.p.get(self.pos + len).unwrap();
-            if let Some(esc) = escaped(c2) {
-                sb.push(esc);
-            } else {
-                sb.push(c2.clone());
-            }
-            len += 1;
-        }
-    }
-
-    fn ident(&mut self, keywords: &HashMap<String, TokenType>) {
-        let mut len = 1;
-        while let Some(c2) = self.p.get(self.pos + len) {
-            if c2.is_alphabetic() || c2.is_ascii_digit() || c2 == &'_' {
-                len += 1;
-                continue;
-            }
-            break;
-        }
-
-        let name: String = self.p[self.pos..self.pos + len].into_iter().collect();
-        let mut t;
-        if let Some(keyword) = keywords.get(&name) {
-            t = self.new_token(keyword.clone());
-        } else {
-            t = self.new_token(TokenType::Ident(name.clone()));
-        }
-        self.pos += len;
-        t.end = self.pos;
-        self.tokens.push(t);
-    }
-
-    fn parse_number(&mut self, base: u32) {
-        let mut sum: i32 = 0;
-        let mut len = 0;
-        for c in self.p[self.pos..].iter() {
-            if let Some(val) = c.to_digit(base) {
-                sum = sum * base as i32 + val as i32;
-                len += 1;
-            } else {
-                break;
-            }
-        }
-        let mut t = self.new_token(TokenType::Num(sum as i32));
-        self.pos += len;
-        t.end = self.pos;
-        self.tokens.push(t);
-    }
-
-    fn number(&mut self) {
-        match self.p.get(self.pos..self.pos + 2) {
-            Some(&['0', 'x']) |
-            Some(&['0', 'X']) => {
-                self.pos += 2;
-                self.parse_number(16);
-            }
-            Some(&['0', _]) => {
-                self.parse_number(8);
-            }
-            _ => self.parse_number(10),
-        }
     }
 
     fn scan(&mut self, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
@@ -349,6 +256,149 @@ impl Tokenizer {
             );
         }
         self.tokens.clone()
+    }
+
+    fn block_comment(&mut self) {
+        self.pos += 2;
+        loop {
+            let two_char = self.p.get(self.pos..self.pos + 2).expect(
+                "unclosed comment",
+            );
+            self.pos += 1;
+            if two_char == &['*', '/'] {
+                self.pos += 1;
+                return;
+            }
+        }
+    }
+
+    fn escaped(c: &char) -> Option<char> {
+        // Issue: https://github.com/rust-lang/rfcs/issues/751
+        match c {
+            // 'a' => Some("\a"),
+            // 'b' => Some("\b"),
+            // 'f' => Some("\f"),
+            'n' => Some('\n'),
+            'r' => Some('\r'),
+            't' => Some('\t'),
+            // 'v' => Some("\v"),
+            _ => None,
+        }
+    }
+
+    fn char_literal(&mut self) -> char {
+        self.pos += 1;
+        let result: char;
+        let c = self.p.get(self.pos).expect("premature end of input");
+        if c != &'\\' {
+            result = c.clone();
+            self.pos += 1;
+        } else {
+            self.pos += 1;
+            let c2 = self.p.get(self.pos).unwrap();
+            result = if let Some(esc) = Self::escaped(c2) {
+                esc
+            } else {
+                c2.clone()
+            };
+            self.pos += 1;
+        }
+
+        if self.p.get(self.pos) != Some(&'\'') {
+            panic!("unclosed character literal");
+        }
+
+        let mut t = self.new_token(TokenType::Num(result as u8 as i32));
+        self.pos += 1;
+        t.end = self.pos + 1;
+        self.tokens.push(t);
+        return result;
+    }
+
+    fn string_literal(&mut self) {
+        self.pos += 1;
+        let mut sb = String::new();
+        let mut len = 0;
+        loop {
+            let mut c2 = self.p.get(self.pos + len).expect("PREMATURE end of input");
+            if c2 == &'"' {
+                len += 1;
+                self.pos += len;
+                let mut t = self.new_token(TokenType::Str(sb, len));
+                t.start = self.pos - len - 1;
+                t.end = self.pos + 1;
+                self.tokens.push(t);
+                return;
+            }
+
+            if c2 != &'\\' {
+                len += 1;
+                sb.push(c2.clone());
+                continue;
+            }
+
+            len += 1;
+            c2 = self.p.get(self.pos + len).unwrap();
+            if let Some(esc) = Self::escaped(c2) {
+                sb.push(esc);
+            } else {
+                sb.push(c2.clone());
+            }
+            len += 1;
+        }
+    }
+
+    fn ident(&mut self, keywords: &HashMap<String, TokenType>) {
+        let mut len = 1;
+        while let Some(c2) = self.p.get(self.pos + len) {
+            if c2.is_alphabetic() || c2.is_ascii_digit() || c2 == &'_' {
+                len += 1;
+                continue;
+            }
+            break;
+        }
+
+        let name: String = self.p[self.pos..self.pos + len].into_iter().collect();
+        let mut t;
+        if let Some(keyword) = keywords.get(&name) {
+            t = self.new_token(keyword.clone());
+        } else {
+            t = self.new_token(TokenType::Ident(name.clone()));
+        }
+        self.pos += len;
+        t.end = self.pos;
+        self.tokens.push(t);
+    }
+
+    fn number(&mut self) {
+        match self.p.get(self.pos..self.pos + 2) {
+            Some(&['0', 'x']) |
+            Some(&['0', 'X']) => {
+                self.pos += 2;
+                self.parse_number(16);
+            }
+            Some(&['0', _]) => {
+                self.parse_number(8);
+            }
+            _ => self.parse_number(10),
+        }
+    }
+
+    fn parse_number(&mut self, base: u32) {
+        let mut sum: i32 = 0;
+        let mut len = 0;
+        for c in self.p[self.pos..].iter() {
+            if let Some(val) = c.to_digit(base) {
+                sum = sum * base as i32 + val as i32;
+                len += 1;
+            } else {
+                break;
+            }
+        }
+        let mut t = self.new_token(TokenType::Num(sum as i32));
+        self.pos += len;
+        t.end = self.pos;
+        self.tokens.push(t);
     }
 
     fn canonicalize_newline(&mut self) {
@@ -472,54 +522,4 @@ fn print_line(buf: &Vec<char>, path: &String, pos: usize) {
 pub fn bad_token(t: &Token, msg: &str) -> ! {
     print_line(&t.buf, &t.filename, t.start);
     panic!("{}", msg);
-}
-
-fn escaped(c: &char) -> Option<char> {
-    // Issue: https://github.com/rust-lang/rfcs/issues/751
-    match c {
-        // 'a' => Some("\a"),
-        // 'b' => Some("\b"),
-        // 'f' => Some("\f"),
-        'n' => Some('\n'),
-        'r' => Some('\r'),
-        't' => Some('\t'),
-        // 'v' => Some("\v"),
-        _ => None,
-    }
-}
-
-fn read_file(filename: &String) -> String {
-    let mut input = String::new();
-    let mut fp = io::stdin();
-    if filename != &"-".to_string() {
-        let mut fp = File::open(filename).expect("file not found");
-        fp.read_to_string(&mut input).expect(
-            "something went wrong reading the file",
-        );
-        return input;
-    }
-    fp.read_to_string(&mut input).expect(
-        "something went wrong reading the file",
-    );
-    return input;
-}
-
-fn keyword_map() -> HashMap<String, TokenType> {
-    let mut map = HashMap::new();
-    map.insert("_Alignof".into(), TokenType::Alignof);
-    map.insert("break".into(), TokenType::Break);
-    map.insert("char".into(), TokenType::Char);
-    map.insert("void".into(), TokenType::Void);
-    map.insert("do".into(), TokenType::Do);
-    map.insert("else".into(), TokenType::Else);
-    map.insert("extern".into(), TokenType::Extern);
-    map.insert("for".into(), TokenType::For);
-    map.insert("if".into(), TokenType::If);
-    map.insert("int".into(), TokenType::Int);
-    map.insert("return".into(), TokenType::Return);
-    map.insert("sizeof".into(), TokenType::Sizeof);
-    map.insert("struct".into(), TokenType::Struct);
-    map.insert("typedef".into(), TokenType::Typedef);
-    map.insert("while".into(), TokenType::While);
-    map
 }

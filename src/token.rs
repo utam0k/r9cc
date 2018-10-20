@@ -77,6 +77,11 @@ impl Token {
         }
     }
 
+    pub fn bad_token(&self, msg: &str) -> ! {
+        print_line(&*self.buf, &*self.filename, self.start);
+        panic!("{}", msg);
+    }
+
     pub fn tokstr(&self) -> String {
         self.buf[self.start..self.end].into_iter().collect()
     }
@@ -517,9 +522,4 @@ fn print_line(buf: &Vec<char>, path: &String, pos: usize) {
         print!(" ");
     }
     print!("^\n\n");
-}
-
-pub fn bad_token(t: &Token, msg: &str) -> ! {
-    print_line(&t.buf, &t.filename, t.start);
-    panic!("{}", msg);
 }

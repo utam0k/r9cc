@@ -1,6 +1,6 @@
 // C preprocessor
 
-use token::{Token, bad_token, tokenize};
+use token::{Token, tokenize};
 use TokenType;
 
 use std::collections::HashMap;
@@ -50,7 +50,7 @@ impl Context {
     pub fn get(&mut self, ty: TokenType, msg: &str) -> Token {
         let t = self.next().expect(msg);
         if t.ty != ty {
-            bad_token(&t, msg);
+            t.bad_token(msg);
         }
         t
     }
@@ -60,7 +60,7 @@ impl Context {
         match t.ty {
             TokenType::Ident(s) |
             TokenType::Str(s, _) => s,
-            _ => bad_token(&t, msg),
+            _ => t.bad_token(msg),
         }
     }
 
@@ -220,7 +220,7 @@ fn read_one_arg(ctx: &mut Context) -> Vec<Token> {
         }
         v.push(t);
     }
-    bad_token(&start, msg);
+    start.bad_token(msg);
 }
 
 fn read_args(ctx: &mut Context) -> Vec<Vec<Token>> {
@@ -258,7 +258,7 @@ fn apply(m: Macro, start: &Token, ctx: &mut Context) -> Vec<Token> {
             ctx.get(TokenType::LeftParen, "comma expected");
             let mut args = read_args(ctx);
             if params.len() != args.len() {
-                bad_token(start, "number of parameter does not match");
+                start.bad_token("number of parameter does not match");
             }
 
             for t in m.tokens {
@@ -320,7 +320,7 @@ fn include(ctx: &mut Context) -> Vec<Token> {
     let path = ctx.ident("string expected");
     let t = ctx.next().expect("newline expected");
     if t.ty != TokenType::NewLine {
-        bad_token(&t, "newline expected");
+        t.bad_token("newline expected");
     }
     tokenize(path, ctx)
 }
@@ -358,7 +358,7 @@ pub fn preprocess(tokens: Vec<Token>, ctx: &mut Context) -> Vec<Token> {
         } else if &*ident == "include" {
             v.append(&mut include(ctx));
         } else {
-            bad_token(&t, "unknown directive");
+            t.bad_token("unknown directive");
         }
     }
 

@@ -1,4 +1,4 @@
-use token::{Token, bad_token};
+use token::Token;
 use {TokenType, Ctype, Type, Scope};
 use util::roundup;
 
@@ -187,7 +187,7 @@ fn find_tag(name: &String) -> Option<Type> {
 fn expect(ty: TokenType, tokens: &Vec<Token>, pos: &mut usize) {
     let t = &tokens[*pos];
     if t.ty != ty {
-        bad_token(t, &format!("{:?} expected", ty));
+        t.bad_token(&format!("{:?} expected", ty));
     }
     *pos += 1;
 }
@@ -283,7 +283,7 @@ fn decl_specifiers(tokens: &Vec<Token>, pos: &mut usize) -> Option<Type> {
             }
             return Some(ty.clone());
         }
-        _ => bad_token(&t, "typename expected"),
+        _ => t.bad_token("typename expected"),
     }
 }
 
@@ -293,7 +293,7 @@ fn ident(tokens: &Vec<Token>, pos: &mut usize) -> String {
         *pos += 1;
         name.clone()
     } else {
-        bad_token(t, "variable name expected");
+        t.bad_token("variable name expected");
     }
 }
 
@@ -334,7 +334,7 @@ fn primary(tokens: &Vec<Token>, pos: &mut usize) -> Node {
             expect(TokenType::RightParen, tokens, pos);
             node
         }
-        _ => bad_token(t, "number expected"),
+        _ => t.bad_token("number expected"),
     }
 }
 
@@ -572,7 +572,7 @@ fn ctype(tokens: &Vec<Token>, pos: &mut usize) -> Type {
         }
         ty
     } else {
-        bad_token(t, "typename expected");
+        t.bad_token("typename expected");
     }
 }
 
@@ -640,7 +640,7 @@ fn direct_decl(ty: Box<Type>, tokens: &Vec<Token>, pos: &mut usize) -> Node {
         node = declarator(&mut placeholder, tokens, pos);
         expect(TokenType::RightParen, tokens, pos);
     } else {
-        bad_token(t, "bad direct-declarator");
+        t.bad_token("bad direct-declarator");
     }
 
     // Read the second half of type name (e.g. `[3][5]`).
@@ -828,7 +828,7 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Option<Node> {
     if let TokenType::Ident(ref name2) = t.ty {
         name = name2.clone();
     } else {
-        bad_token(t, "function or variable name expected");
+        t.bad_token("function or variable name expected");
     }
     *pos += 1;
 
@@ -852,7 +852,7 @@ fn toplevel(tokens: &Vec<Token>, pos: &mut usize) -> Option<Node> {
         let t = &tokens[*pos];
         expect(TokenType::LeftBrace, tokens, pos);
         if is_typedef {
-            bad_token(t, "typedef {} has function definition");
+            t.bad_token("typedef {} has function definition");
         }
         let body = compound_stmt(tokens, pos);
 

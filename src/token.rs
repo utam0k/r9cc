@@ -255,10 +255,7 @@ impl Tokenizer {
                 continue;
             }
 
-            panic!(
-                "cannot tokenize: {:?}\n",
-                self.p[self.pos..].into_iter().collect::<String>()
-            );
+            self.bad_position("cannot tokenize");
         }
         self.tokens.clone()
     }
@@ -266,13 +263,14 @@ impl Tokenizer {
     fn block_comment(&mut self) {
         self.pos += 2;
         loop {
-            let two_char = self.p.get(self.pos..self.pos + 2).expect(
-                "unclosed comment",
-            );
-            self.pos += 1;
-            if two_char == &['*', '/'] {
+            if let Some(two_char) = self.p.get(self.pos..self.pos + 2) {
                 self.pos += 1;
-                return;
+                if two_char == &['*', '/'] {
+                    self.pos += 1;
+                    return;
+                }
+            } else {
+                self.bad_position("unclosed comment");
             }
         }
     }
@@ -482,6 +480,11 @@ impl Tokenizer {
             .into_iter()
             .filter(|t| t.ty != TokenType::NewLine)
             .collect()
+    }
+
+    fn bad_position(&self, msg: &'static str) {
+        print_line(&self.p, &self.filename, self.pos);
+        panic!(msg);
     }
 }
 

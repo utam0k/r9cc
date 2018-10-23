@@ -95,6 +95,7 @@ impl Context {
 #[derive(Clone)]
 pub struct Preprocess {
     input: Vec<Token>,
+    output: Vec<Token>,
     pos: usize,
     next: Option<Box<Preprocess>>,
 }
@@ -103,6 +104,7 @@ impl Default for Preprocess {
     fn default() -> Preprocess {
         Preprocess {
             input: vec![],
+            output: vec![],
             pos: 0,
             next: None,
         }
@@ -113,8 +115,8 @@ impl Preprocess {
     pub fn new(input: Vec<Token>, next: Option<Box<Preprocess>>) -> Self {
         Preprocess {
             input,
-            pos: 0,
             next,
+            ..Default::default()
         }
     }
 }
@@ -250,41 +252,63 @@ fn stringize(tokens: &Vec<Token>, filename: Rc<String>, buf: Rc<Vec<char>>) -> T
     Token::new(TokenType::Str(sb, len), 0, filename, buf)
 }
 
-fn apply(m: Macro, start: &Token, ctx: &mut Context) -> Vec<Token> {
-    match m.ty {
-        MacroType::Objlike => m.tokens,
-        MacroType::Funclike(ref params) => {
-            let mut v = vec![];
-            ctx.get(TokenType::LeftParen, "comma expected");
-            let mut args = read_args(ctx);
-            if params.len() != args.len() {
-                start.bad_token("number of parameter does not match");
-            }
+fn add_special_macro(t: &Token, ctx: &mut Context) -> bool {
+    if is_ident(&t, "__LINE__") {
+        ctx.preprocess.output.push(Token::new(
+            TokenType::Num(t.get_line_number() as i32),
+            0,
+            t.filename.clone(),
+            t.buf.clone(),
+        ));
+        true
+    } else {
+        false
+    }
+}
 
-            for t in m.tokens {
-                if is_ident(&t, "__LINE__") {
-                    v.push(Token::new(
-                        TokenType::Num(t.get_line_number() as i32),
-                        0,
+fn apply_objlike(tokens: Vec<Token>, ctx: &mut Context) {
+    for t in tokens {
+        if add_special_macro(&t, ctx) {
+            continue;
+        } else {
+            ctx.preprocess.output.push(t);
+        }
+    }
+}
+
+fn apply_funclike(tokens: Vec<Token>, params: &Vec<String>, start: &Token, ctx: &mut Context) {
+    ctx.get(TokenType::LeftParen, "comma expected");
+    let mut args = read_args(ctx);
+    if params.len() != args.len() {
+        start.bad_token("number of parameter does not match");
+    }
+
+    for t in tokens {
+        if add_special_macro(&t, ctx) {
+            continue;
+        }
+
+        match t.ty {
+            TokenType::Param(val) => {
+                if t.stringize {
+                    ctx.preprocess.output.push(stringize(
+                        &args[val],
                         t.filename,
                         t.buf,
                     ));
-                    continue;
-                }
-
-                match t.ty {
-                    TokenType::Param(val) => {
-                        if t.stringize {
-                            v.push(stringize(&args[val], t.filename, t.buf));
-                        } else {
-                            v.append(&mut args[val].clone());
-                        }
-                    }
-                    _ => v.push(t),
+                } else {
+                    ctx.preprocess.output.append(&mut args[val].clone());
                 }
             }
-            v
+            _ => ctx.preprocess.output.push(t),
         }
+    }
+}
+
+fn apply(m: Macro, start: &Token, ctx: &mut Context) {
+    match m.ty {
+        MacroType::Objlike => apply_objlike(m.tokens, ctx),
+        MacroType::Funclike(ref params) => apply_funclike(m.tokens, params, start, ctx),
     }
 }
 
@@ -316,18 +340,18 @@ fn define(ctx: &mut Context) {
     objlike_macro(name, ctx);
 }
 
-fn include(ctx: &mut Context) -> Vec<Token> {
+fn include(ctx: &mut Context) {
     let path = ctx.ident("string expected");
     let t = ctx.next().expect("newline expected");
     if t.ty != TokenType::NewLine {
         t.bad_token("newline expected");
     }
-    tokenize(path, ctx)
+    let mut v = tokenize(path, ctx);
+    ctx.preprocess.output.append(&mut v);
 }
 
 pub fn preprocess(tokens: Vec<Token>, ctx: &mut Context) -> Vec<Token> {
     ctx.preprocess = Box::new(Preprocess::new(tokens, Some(ctx.preprocess.clone())));
-    let mut v: Vec<Token> = vec![];
 
     while !ctx.eof() {
         let t = ctx.next().unwrap();
@@ -338,17 +362,17 @@ pub fn preprocess(tokens: Vec<Token>, ctx: &mut Context) -> Vec<Token> {
             macro_name = None;
         }
         if let Some(name) = macro_name {
-            if let Some(m) = ctx.macros.get(&name).cloned() {
-                v.append(&mut apply(m, &t, ctx));
+            if let Some(mut m) = ctx.macros.get(&name).cloned() {
+                apply(m, &t, ctx);
             } else {
-                v.push(t);
+                ctx.preprocess.output.push(t);
             }
             continue;
         }
 
 
         if t.ty != TokenType::HashMark {
-            v.push(t);
+            ctx.preprocess.output.push(t);
             continue;
         }
 
@@ -356,12 +380,14 @@ pub fn preprocess(tokens: Vec<Token>, ctx: &mut Context) -> Vec<Token> {
         if &*ident == "define" {
             define(ctx);
         } else if &*ident == "include" {
-            v.append(&mut include(ctx));
+            include(ctx);
         } else {
             t.bad_token("unknown directive");
         }
     }
 
+    let mut output = vec![];
+    mem::swap(&mut ctx.preprocess.output, &mut output);
     ctx.preprocess = ctx.preprocess.next.take().unwrap();
-    v
+    output
 }

@@ -7,26 +7,23 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::mem;
 
-pub struct Context {
+pub struct Preprocessor {
     macros: HashMap<String, Macro>,
-    pub preprocess: Box<Preprocess>,
+    pub env: Box<Env>,
 }
 
-impl Context {
+impl Preprocessor {
     pub fn new() -> Self {
-        Context {
+        Preprocessor {
             macros: HashMap::new(),
-            preprocess: Box::new(Preprocess::new(vec![], None)),
+            env: Box::new(Env::new(vec![], None)),
         }
     }
 
-    pub fn new_preprocess(&mut self, input: Vec<Token>) {
-        self.preprocess = Box::new(Preprocess::new(
+    pub fn new_env(&mut self, input: Vec<Token>) {
+        self.env = Box::new(Env::new(
             input,
-            Some(mem::replace(
-                &mut self.preprocess,
-                Box::new(Preprocess::default()),
-            )),
+            Some(mem::replace(&mut self.env, Box::new(Env::default()))),
         ));
     }
 
@@ -34,17 +31,14 @@ impl Context {
         if self.eof() {
             return None;
         }
-        let pos = self.preprocess.pos;
-        let t = Some(mem::replace(
-            &mut self.preprocess.input[pos],
-            Token::default(),
-        ));
-        self.preprocess.pos += 1;
+        let pos = self.env.pos;
+        let t = Some(mem::replace(&mut self.env.input[pos], Token::default()));
+        self.env.pos += 1;
         t
     }
 
     pub fn eof(&self) -> bool {
-        self.preprocess.pos == self.preprocess.input.len()
+        self.env.pos == self.env.input.len()
     }
 
     pub fn get(&mut self, ty: TokenType, msg: &str) -> Token {
@@ -65,7 +59,7 @@ impl Context {
     }
 
     pub fn peek(&self) -> Option<&Token> {
-        self.preprocess.input.get(self.preprocess.pos)
+        self.env.input.get(self.env.pos)
     }
 
     pub fn consume(&mut self, ty: TokenType) -> bool {
@@ -76,7 +70,7 @@ impl Context {
         } else {
             return false;
         }
-        self.preprocess.pos += 1;
+        self.env.pos += 1;
         return true;
     }
 
@@ -93,16 +87,16 @@ impl Context {
 }
 
 #[derive(Clone)]
-pub struct Preprocess {
+pub struct Env {
     input: Vec<Token>,
     output: Vec<Token>,
     pos: usize,
-    next: Option<Box<Preprocess>>,
+    next: Option<Box<Env>>,
 }
 
-impl Default for Preprocess {
-    fn default() -> Preprocess {
-        Preprocess {
+impl Default for Env {
+    fn default() -> Env {
+        Env {
             input: vec![],
             output: vec![],
             pos: 0,
@@ -111,9 +105,9 @@ impl Default for Preprocess {
     }
 }
 
-impl Preprocess {
-    pub fn new(input: Vec<Token>, next: Option<Box<Preprocess>>) -> Self {
-        Preprocess {
+impl Env {
+    pub fn new(input: Vec<Token>, next: Option<Box<Env>>) -> Self {
+        Env {
             input,
             next,
             ..Default::default()
@@ -200,7 +194,7 @@ fn replace_params(m: &mut Macro) {
     }
 }
 
-fn read_one_arg(ctx: &mut Context) -> Vec<Token> {
+fn read_one_arg(ctx: &mut Preprocessor) -> Vec<Token> {
     let mut v = vec![];
     let msg = "unclosed macro argument";
     let start = ctx.peek().expect(msg).clone();
@@ -225,7 +219,7 @@ fn read_one_arg(ctx: &mut Context) -> Vec<Token> {
     start.bad_token(msg);
 }
 
-fn read_args(ctx: &mut Context) -> Vec<Vec<Token>> {
+fn read_args(ctx: &mut Preprocessor) -> Vec<Vec<Token>> {
     let mut v = vec![];
     if ctx.consume(TokenType::RightParen) {
         return v;
@@ -252,9 +246,9 @@ fn stringize(tokens: &Vec<Token>, filename: Rc<String>, buf: Rc<Vec<char>>) -> T
     Token::new(TokenType::Str(sb, len), 0, filename, buf)
 }
 
-fn add_special_macro(t: &Token, ctx: &mut Context) -> bool {
+fn add_special_macro(t: &Token, ctx: &mut Preprocessor) -> bool {
     if is_ident(&t, "__LINE__") {
-        ctx.preprocess.output.push(Token::new(
+        ctx.env.output.push(Token::new(
             TokenType::Num(t.get_line_number() as i32),
             0,
             t.filename.clone(),
@@ -266,17 +260,17 @@ fn add_special_macro(t: &Token, ctx: &mut Context) -> bool {
     }
 }
 
-fn apply_objlike(tokens: Vec<Token>, ctx: &mut Context) {
+fn apply_objlike(tokens: Vec<Token>, ctx: &mut Preprocessor) {
     for t in tokens {
         if add_special_macro(&t, ctx) {
             continue;
         } else {
-            ctx.preprocess.output.push(t);
+            ctx.env.output.push(t);
         }
     }
 }
 
-fn apply_funclike(tokens: Vec<Token>, params: &Vec<String>, start: &Token, ctx: &mut Context) {
+fn apply_funclike(tokens: Vec<Token>, params: &Vec<String>, start: &Token, ctx: &mut Preprocessor) {
     ctx.get(TokenType::LeftParen, "comma expected");
     let mut args = read_args(ctx);
     if params.len() != args.len() {
@@ -291,28 +285,26 @@ fn apply_funclike(tokens: Vec<Token>, params: &Vec<String>, start: &Token, ctx: 
         match t.ty {
             TokenType::Param(val) => {
                 if t.stringize {
-                    ctx.preprocess.output.push(stringize(
-                        &args[val],
-                        t.filename,
-                        t.buf,
-                    ));
+                    ctx.env.output.push(
+                        stringize(&args[val], t.filename, t.buf),
+                    );
                 } else {
-                    ctx.preprocess.output.append(&mut args[val].clone());
+                    ctx.env.output.append(&mut args[val].clone());
                 }
             }
-            _ => ctx.preprocess.output.push(t),
+            _ => ctx.env.output.push(t),
         }
     }
 }
 
-fn apply(m: Macro, start: &Token, ctx: &mut Context) {
+fn apply(m: Macro, start: &Token, ctx: &mut Preprocessor) {
     match m.ty {
         MacroType::Objlike => apply_objlike(m.tokens, ctx),
         MacroType::Funclike(ref params) => apply_funclike(m.tokens, params, start, ctx),
     }
 }
 
-fn funclike_macro(name: String, ctx: &mut Context) {
+fn funclike_macro(name: String, ctx: &mut Preprocessor) {
     let mut params = vec![];
     params.push(ctx.ident("parameter name expected"));
     while !ctx.consume(TokenType::RightParen) {
@@ -326,13 +318,13 @@ fn funclike_macro(name: String, ctx: &mut Context) {
     ctx.macros.insert(name, m);
 }
 
-fn objlike_macro(name: String, ctx: &mut Context) {
+fn objlike_macro(name: String, ctx: &mut Preprocessor) {
     let mut m = Macro::new(MacroType::Objlike);
     m.tokens = ctx.read_until_eol();
     ctx.macros.insert(name, m);
 }
 
-fn define(ctx: &mut Context) {
+fn define(ctx: &mut Preprocessor) {
     let name = ctx.ident("macro name expected");
     if ctx.consume(TokenType::LeftParen) {
         return funclike_macro(name, ctx);
@@ -340,18 +332,18 @@ fn define(ctx: &mut Context) {
     objlike_macro(name, ctx);
 }
 
-fn include(ctx: &mut Context) {
+fn include(ctx: &mut Preprocessor) {
     let path = ctx.ident("string expected");
     let t = ctx.next().expect("newline expected");
     if t.ty != TokenType::NewLine {
         t.bad_token("newline expected");
     }
     let mut v = tokenize(path, ctx);
-    ctx.preprocess.output.append(&mut v);
+    ctx.env.output.append(&mut v);
 }
 
-pub fn preprocess(tokens: Vec<Token>, ctx: &mut Context) -> Vec<Token> {
-    ctx.preprocess = Box::new(Preprocess::new(tokens, Some(ctx.preprocess.clone())));
+pub fn preprocess(tokens: Vec<Token>, ctx: &mut Preprocessor) -> Vec<Token> {
+    ctx.env = Box::new(Env::new(tokens, Some(ctx.env.clone())));
 
     while !ctx.eof() {
         let t = ctx.next().unwrap();
@@ -365,14 +357,14 @@ pub fn preprocess(tokens: Vec<Token>, ctx: &mut Context) -> Vec<Token> {
             if let Some(mut m) = ctx.macros.get(&name).cloned() {
                 apply(m, &t, ctx);
             } else {
-                ctx.preprocess.output.push(t);
+                ctx.env.output.push(t);
             }
             continue;
         }
 
 
         if t.ty != TokenType::HashMark {
-            ctx.preprocess.output.push(t);
+            ctx.env.output.push(t);
             continue;
         }
 
@@ -387,7 +379,7 @@ pub fn preprocess(tokens: Vec<Token>, ctx: &mut Context) -> Vec<Token> {
     }
 
     let mut output = vec![];
-    mem::swap(&mut ctx.preprocess.output, &mut output);
-    ctx.preprocess = ctx.preprocess.next.take().unwrap();
+    mem::swap(&mut ctx.env.output, &mut output);
+    ctx.env = ctx.env.next.take().unwrap();
     output
 }

@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 
-pub fn tokenize(path: String, ctx: &mut preprocess::Context) -> Vec<Token> {
+pub fn tokenize(path: String, ctx: &mut preprocess::Preprocessor) -> Vec<Token> {
     let mut tokenizer = Tokenizer::new(Rc::new(path));
     tokenizer.canonicalize_newline();
     tokenizer.remove_backslash_newline();

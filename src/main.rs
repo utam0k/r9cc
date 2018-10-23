@@ -7,7 +7,7 @@ use r9cc::parse::parse;
 use r9cc::regalloc::alloc_regs;
 use r9cc::token::tokenize;
 use r9cc::sema::sema;
-use r9cc::preprocess;
+use r9cc::preprocess::Preprocessor;
 
 use std::env;
 use std::process;
@@ -40,10 +40,8 @@ fn main() {
         path = args[1].clone();
     }
 
-    let mut context = preprocess::Context::new();
-
     // Tokenize and parse.
-    let tokens = tokenize(path, &mut context);
+    let tokens = tokenize(path, &mut Preprocessor::new());
 
     let nodes = parse(&tokens);
     let (nodes, globals) = sema(nodes);

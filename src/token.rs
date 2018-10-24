@@ -89,6 +89,13 @@ impl Token {
     pub fn get_line_number(&self) -> usize {
         self.buf[..self.end].iter().filter(|c| *c == &'\n').count()
     }
+
+    pub fn is_ident(&self, s: &str) -> bool {
+        match self.ty {
+            TokenType::Ident(ref name) => name == s,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

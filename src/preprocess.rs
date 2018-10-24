@@ -7,83 +7,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::mem;
 
-pub struct Preprocessor {
-    macros: HashMap<String, Macro>,
-    pub env: Box<Env>,
-}
-
-impl Preprocessor {
-    pub fn new() -> Self {
-        Preprocessor {
-            macros: HashMap::new(),
-            env: Box::new(Env::new(vec![], None)),
-        }
-    }
-
-    pub fn new_env(&mut self, input: Vec<Token>) {
-        self.env = Box::new(Env::new(
-            input,
-            Some(mem::replace(&mut self.env, Box::new(Env::default()))),
-        ));
-    }
-
-    pub fn next(&mut self) -> Option<Token> {
-        if self.eof() {
-            return None;
-        }
-        let pos = self.env.pos;
-        let t = Some(mem::replace(&mut self.env.input[pos], Token::default()));
-        self.env.pos += 1;
-        t
-    }
-
-    pub fn eof(&self) -> bool {
-        self.env.pos == self.env.input.len()
-    }
-
-    pub fn get(&mut self, ty: TokenType, msg: &str) -> Token {
-        let t = self.next().expect(msg);
-        if t.ty != ty {
-            t.bad_token(msg);
-        }
-        t
-    }
-
-    fn ident(&mut self, msg: &str) -> String {
-        let t = self.next().expect(msg);
-        match t.ty {
-            TokenType::Ident(s) |
-            TokenType::Str(s, _) => s,
-            _ => t.bad_token(msg),
-        }
-    }
-
-    pub fn peek(&self) -> Option<&Token> {
-        self.env.input.get(self.env.pos)
-    }
-
-    pub fn consume(&mut self, ty: TokenType) -> bool {
-        if let Some(t) = self.peek() {
-            if t.ty != ty {
-                return false;
-            }
-        } else {
-            return false;
-        }
-        self.env.pos += 1;
-        return true;
-    }
-
-    pub fn read_until_eol(&mut self) -> Vec<Token> {
-        let mut v = vec![];
-        while let Some(t) = self.next() {
-            if t.ty == TokenType::NewLine {
-                break;
-            }
-            v.push(t);
-        }
-        v
-    }
+pub fn preprocess(tokens: Vec<Token>, ctx: &mut Preprocessor) -> Vec<Token> {
+    ctx.preprocess_impl(tokens)
 }
 
 #[derive(Clone)]
@@ -128,258 +53,326 @@ struct Macro {
 }
 
 impl Macro {
-    pub fn new(ty: MacroType) -> Self {
+    fn new(ty: MacroType) -> Self {
         Macro { ty, tokens: vec![] }
     }
-}
 
-fn is_ident(t: &Token, s: &str) -> bool {
-    match t.ty {
-        TokenType::Ident(ref name) => name == s,
-        _ => false,
-    }
-}
-
-fn replace_params(m: &mut Macro) {
-    match m.ty {
-        MacroType::Funclike(ref params) => {
-            let mut map = HashMap::new();
-            for i in 0..params.len() {
-                let name = params[i].clone();
-                map.insert(name, i);
-            }
-
-            for i in 0..m.tokens.len() {
-                let t = &m.tokens[i].clone();
-                match t.ty {
-                    TokenType::Ident(ref name) => {
-                        if let Some(n) = map.get(name) {
-                            if let Some(elem) = m.tokens.get_mut(i) {
-                                *elem = Token::new(
-                                    TokenType::Param(n.clone()),
-                                    0,
-                                    t.filename.clone(),
-                                    t.buf.clone(),
-                                );
-                            }
-                        } else {
-                            continue;
-                        }
-                    }
-                    _ => continue,
+    fn replace_params(&mut self) {
+        match self.ty {
+            MacroType::Funclike(ref params) => {
+                let mut map = HashMap::new();
+                for i in 0..params.len() {
+                    let name = params[i].clone();
+                    map.insert(name, i);
                 }
-            }
 
-            // Process '#' followed by a macro parameter.
-            let mut v = vec![];
-            let mut i = 0;
-            while i < m.tokens.len() {
-                let t1 = m.tokens[i].clone();
-                if i != m.tokens.len() - 1 && t1.ty == TokenType::HashMark {
-                    if let Some(elem) = m.tokens.get_mut(i + 1) {
-                        elem.stringize = true;
-                        v.push(elem.clone());
-                        i += 1;
+                for i in 0..self.tokens.len() {
+                    let t = &self.tokens[i].clone();
+                    match t.ty {
+                        TokenType::Ident(ref name) => {
+                            if let Some(n) = map.get(name) {
+                                if let Some(elem) = self.tokens.get_mut(i) {
+                                    *elem = Token::new(
+                                        TokenType::Param(n.clone()),
+                                        0,
+                                        t.filename.clone(),
+                                        t.buf.clone(),
+                                    );
+                                }
+                            } else {
+                                continue;
+                            }
+                        }
+                        _ => continue,
+                    }
+                }
+
+                // Process '#' followed by a macro parameter.
+                let mut v = vec![];
+                let mut i = 0;
+                while i < self.tokens.len() {
+                    let t1 = self.tokens[i].clone();
+                    if i != self.tokens.len() - 1 && t1.ty == TokenType::HashMark {
+                        if let Some(elem) = self.tokens.get_mut(i + 1) {
+                            elem.stringize = true;
+                            v.push(elem.clone());
+                            i += 1;
+                        } else {
+                            v.push(t1)
+                        }
                     } else {
                         v.push(t1)
                     }
-                } else {
-                    v.push(t1)
+                    i += 1;
                 }
-                i += 1;
+                self.tokens = v;
             }
-            m.tokens = v;
-        }
-        _ => unreachable!(),
-    }
-}
-
-fn read_one_arg(ctx: &mut Preprocessor) -> Vec<Token> {
-    let mut v = vec![];
-    let msg = "unclosed macro argument";
-    let start = ctx.peek().expect(msg).clone();
-    let mut level = 0;
-
-    while !ctx.eof() {
-        let t = ctx.peek().expect(msg).clone();
-        if level == 0 {
-            if t.ty == TokenType::RightParen || t.ty == TokenType::Comma {
-                return v;
-            }
-        }
-
-        ctx.next();
-        if t.ty == TokenType::LeftParen {
-            level += 1;
-        } else if t.ty == TokenType::RightParen {
-            level -= 1;
-        }
-        v.push(t);
-    }
-    start.bad_token(msg);
-}
-
-fn read_args(ctx: &mut Preprocessor) -> Vec<Vec<Token>> {
-    let mut v = vec![];
-    if ctx.consume(TokenType::RightParen) {
-        return v;
-    }
-    v.push(read_one_arg(ctx));
-    while !ctx.consume(TokenType::RightParen) {
-        ctx.get(TokenType::Comma, "comma expected");
-        v.push(read_one_arg(ctx));
-    }
-    v
-}
-
-fn stringize(tokens: &Vec<Token>, filename: Rc<String>, buf: Rc<Vec<char>>) -> Token {
-    let mut sb = String::new();
-    for i in 0..tokens.len() {
-        let t = &tokens[i];
-        if i != 0 {
-            sb.push(' ');
-        }
-        sb.push_str(&t.tokstr());
-    }
-
-    let len = sb.len();
-    Token::new(TokenType::Str(sb, len), 0, filename, buf)
-}
-
-fn add_special_macro(t: &Token, ctx: &mut Preprocessor) -> bool {
-    if is_ident(&t, "__LINE__") {
-        ctx.env.output.push(Token::new(
-            TokenType::Num(t.get_line_number() as i32),
-            0,
-            t.filename.clone(),
-            t.buf.clone(),
-        ));
-        true
-    } else {
-        false
-    }
-}
-
-fn apply_objlike(tokens: Vec<Token>, ctx: &mut Preprocessor) {
-    for t in tokens {
-        if add_special_macro(&t, ctx) {
-            continue;
-        } else {
-            ctx.env.output.push(t);
+            _ => unreachable!(),
         }
     }
 }
 
-fn apply_funclike(tokens: Vec<Token>, params: &Vec<String>, start: &Token, ctx: &mut Preprocessor) {
-    ctx.get(TokenType::LeftParen, "comma expected");
-    let mut args = read_args(ctx);
-    if params.len() != args.len() {
-        start.bad_token("number of parameter does not match");
+
+pub struct Preprocessor {
+    macros: HashMap<String, Macro>,
+    pub env: Box<Env>,
+}
+
+impl Preprocessor {
+    pub fn new() -> Self {
+        Preprocessor {
+            macros: HashMap::new(),
+            env: Box::new(Env::new(vec![], None)),
+        }
     }
 
-    for t in tokens {
-        if add_special_macro(&t, ctx) {
-            continue;
+    fn next(&mut self) -> Option<Token> {
+        if self.eof() {
+            return None;
         }
+        let pos = self.env.pos;
+        let t = Some(mem::replace(&mut self.env.input[pos], Token::default()));
+        self.env.pos += 1;
+        t
+    }
 
+    fn eof(&self) -> bool {
+        self.env.pos == self.env.input.len()
+    }
+
+    fn get(&mut self, ty: TokenType, msg: &str) -> Token {
+        let t = self.next().expect(msg);
+        if t.ty != ty {
+            t.bad_token(msg);
+        }
+        t
+    }
+
+    fn ident(&mut self, msg: &str) -> String {
+        let t = self.next().expect(msg);
         match t.ty {
-            TokenType::Param(val) => {
-                if t.stringize {
-                    ctx.env.output.push(
-                        stringize(&args[val], t.filename, t.buf),
-                    );
-                } else {
-                    ctx.env.output.append(&mut args[val].clone());
+            TokenType::Ident(s) |
+            TokenType::Str(s, _) => s,
+            _ => t.bad_token(msg),
+        }
+    }
+
+    fn peek(&self) -> Option<&Token> {
+        self.env.input.get(self.env.pos)
+    }
+
+    fn consume(&mut self, ty: TokenType) -> bool {
+        if let Some(t) = self.peek() {
+            if t.ty != ty {
+                return false;
+            }
+        } else {
+            return false;
+        }
+        self.env.pos += 1;
+        return true;
+    }
+
+    fn read_until_eol(&mut self) -> Vec<Token> {
+        let mut v = vec![];
+        while let Some(t) = self.next() {
+            if t.ty == TokenType::NewLine {
+                break;
+            }
+            v.push(t);
+        }
+        v
+    }
+
+    fn read_one_arg(&mut self) -> Vec<Token> {
+        let mut v = vec![];
+        let msg = "unclosed macro argument";
+        let start = self.peek().expect(msg).clone();
+        let mut level = 0;
+
+        while !self.eof() {
+            let t = self.peek().expect(msg).clone();
+            if level == 0 {
+                if t.ty == TokenType::RightParen || t.ty == TokenType::Comma {
+                    return v;
                 }
             }
-            _ => ctx.env.output.push(t),
-        }
-    }
-}
 
-fn apply(m: Macro, start: &Token, ctx: &mut Preprocessor) {
-    match m.ty {
-        MacroType::Objlike => apply_objlike(m.tokens, ctx),
-        MacroType::Funclike(ref params) => apply_funclike(m.tokens, params, start, ctx),
-    }
-}
-
-fn funclike_macro(name: String, ctx: &mut Preprocessor) {
-    let mut params = vec![];
-    params.push(ctx.ident("parameter name expected"));
-    while !ctx.consume(TokenType::RightParen) {
-        ctx.get(TokenType::Comma, "comma expected");
-        params.push(ctx.ident("parameter name expected"));
-    }
-
-    let mut m = Macro::new(MacroType::Funclike(params));
-    m.tokens = ctx.read_until_eol();
-    replace_params(&mut m);
-    ctx.macros.insert(name, m);
-}
-
-fn objlike_macro(name: String, ctx: &mut Preprocessor) {
-    let mut m = Macro::new(MacroType::Objlike);
-    m.tokens = ctx.read_until_eol();
-    ctx.macros.insert(name, m);
-}
-
-fn define(ctx: &mut Preprocessor) {
-    let name = ctx.ident("macro name expected");
-    if ctx.consume(TokenType::LeftParen) {
-        return funclike_macro(name, ctx);
-    }
-    objlike_macro(name, ctx);
-}
-
-fn include(ctx: &mut Preprocessor) {
-    let path = ctx.ident("string expected");
-    let t = ctx.next().expect("newline expected");
-    if t.ty != TokenType::NewLine {
-        t.bad_token("newline expected");
-    }
-    let mut v = tokenize(path, ctx);
-    ctx.env.output.append(&mut v);
-}
-
-pub fn preprocess(tokens: Vec<Token>, ctx: &mut Preprocessor) -> Vec<Token> {
-    ctx.env = Box::new(Env::new(tokens, Some(ctx.env.clone())));
-
-    while !ctx.eof() {
-        let t = ctx.next().unwrap();
-        let macro_name;
-        if let TokenType::Ident(ref name) = t.ty {
-            macro_name = Some(name.clone());
-        } else {
-            macro_name = None;
-        }
-        if let Some(name) = macro_name {
-            if let Some(mut m) = ctx.macros.get(&name).cloned() {
-                apply(m, &t, ctx);
-            } else {
-                ctx.env.output.push(t);
+            self.next();
+            if t.ty == TokenType::LeftParen {
+                level += 1;
+            } else if t.ty == TokenType::RightParen {
+                level -= 1;
             }
-            continue;
+            v.push(t);
+        }
+        start.bad_token(msg);
+    }
+
+    fn read_args(&mut self) -> Vec<Vec<Token>> {
+        let mut v = vec![];
+        if self.consume(TokenType::RightParen) {
+            return v;
+        }
+        v.push(self.read_one_arg());
+        while !self.consume(TokenType::RightParen) {
+            self.get(TokenType::Comma, "comma expected");
+            v.push(self.read_one_arg());
+        }
+        v
+    }
+
+    fn stringize(tokens: &Vec<Token>, filename: Rc<String>, buf: Rc<Vec<char>>) -> Token {
+        let mut sb = String::new();
+        for i in 0..tokens.len() {
+            let t = &tokens[i];
+            if i != 0 {
+                sb.push(' ');
+            }
+            sb.push_str(&t.tokstr());
         }
 
+        let len = sb.len();
+        Token::new(TokenType::Str(sb, len), 0, filename, buf)
+    }
 
-        if t.ty != TokenType::HashMark {
-            ctx.env.output.push(t);
-            continue;
-        }
-
-        let ident = ctx.ident("identifier expected");
-        if &*ident == "define" {
-            define(ctx);
-        } else if &*ident == "include" {
-            include(ctx);
+    fn add_special_macro(&mut self, t: &Token) -> bool {
+        if t.is_ident("__LINE__") {
+            self.env.output.push(Token::new(
+                TokenType::Num(t.get_line_number() as i32),
+                0,
+                t.filename.clone(),
+                t.buf.clone(),
+            ));
+            true
         } else {
-            t.bad_token("unknown directive");
+            false
         }
     }
 
-    let mut output = vec![];
-    mem::swap(&mut ctx.env.output, &mut output);
-    ctx.env = ctx.env.next.take().unwrap();
-    output
+    fn apply_objlike(&mut self, tokens: Vec<Token>) {
+        for t in tokens {
+            if self.add_special_macro(&t) {
+                continue;
+            } else {
+                self.env.output.push(t);
+            }
+        }
+    }
+
+    fn apply_funclike(&mut self, tokens: Vec<Token>, params: &Vec<String>, start: &Token) {
+        self.get(TokenType::LeftParen, "comma expected");
+        let mut args = self.read_args();
+        if params.len() != args.len() {
+            start.bad_token("number of parameter does not match");
+        }
+
+        for t in tokens {
+            if self.add_special_macro(&t) {
+                continue;
+            }
+
+            match t.ty {
+                TokenType::Param(val) => {
+                    if t.stringize {
+                        self.env.output.push(Self::stringize(
+                            &args[val],
+                            t.filename,
+                            t.buf,
+                        ));
+                    } else {
+                        self.env.output.append(&mut args[val].clone());
+                    }
+                }
+                _ => self.env.output.push(t),
+            }
+        }
+    }
+
+    fn apply(&mut self, m: Macro, start: &Token) {
+        match m.ty {
+            MacroType::Objlike => self.apply_objlike(m.tokens),
+            MacroType::Funclike(ref params) => self.apply_funclike(m.tokens, params, start),
+        }
+    }
+
+    fn funclike_macro(&mut self, name: String) {
+        let mut params = vec![];
+        params.push(self.ident("parameter name expected"));
+        while !self.consume(TokenType::RightParen) {
+            self.get(TokenType::Comma, "comma expected");
+            params.push(self.ident("parameter name expected"));
+        }
+
+        let mut m = Macro::new(MacroType::Funclike(params));
+        m.tokens = self.read_until_eol();
+        m.replace_params();
+        self.macros.insert(name, m);
+    }
+
+    fn objlike_macro(&mut self, name: String) {
+        let mut m = Macro::new(MacroType::Objlike);
+        m.tokens = self.read_until_eol();
+        self.macros.insert(name, m);
+    }
+
+    fn define(&mut self) {
+        let name = self.ident("macro name expected");
+        if self.consume(TokenType::LeftParen) {
+            return self.funclike_macro(name);
+        }
+        self.objlike_macro(name);
+    }
+
+    fn include(&mut self) {
+        let path = self.ident("string expected");
+        let t = self.next().expect("newline expected");
+        if t.ty != TokenType::NewLine {
+            t.bad_token("newline expected");
+        }
+        let mut v = tokenize(path, self);
+        self.env.output.append(&mut v);
+    }
+
+    fn preprocess_impl(&mut self, tokens: Vec<Token>) -> Vec<Token> {
+        self.env = Box::new(Env::new(tokens, Some(self.env.clone())));
+
+        while !self.eof() {
+            let t = self.next().unwrap();
+            let macro_name;
+            if let TokenType::Ident(ref name) = t.ty {
+                macro_name = Some(name.clone());
+            } else {
+                macro_name = None;
+            }
+            if let Some(name) = macro_name {
+                if let Some(mut m) = self.macros.get(&name).cloned() {
+                    self.apply(m, &t);
+                } else {
+                    self.env.output.push(t);
+                }
+                continue;
+            }
+
+
+            if t.ty != TokenType::HashMark {
+                self.env.output.push(t);
+                continue;
+            }
+
+            let ident = self.ident("identifier expected");
+            if &*ident == "define" {
+                self.define();
+            } else if &*ident == "include" {
+                self.include();
+            } else {
+                t.bad_token("unknown directive");
+            }
+        }
+
+        let mut output = vec![];
+        mem::swap(&mut self.env.output, &mut output);
+        self.env = self.env.next.take().unwrap();
+        output
+    }
 }

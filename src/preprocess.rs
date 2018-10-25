@@ -57,7 +57,8 @@ impl Macro {
         Macro { ty, tokens: vec![] }
     }
 
-    fn replace_params(&mut self) {
+    fn replace_params(mut self) -> Self {
+
         match self.ty {
             MacroType::Funclike(ref params) => {
                 let mut map = HashMap::new();
@@ -88,27 +89,38 @@ impl Macro {
                 }
 
                 // Process '#' followed by a macro parameter.
-                let mut v = vec![];
-                let mut i = 0;
-                while i < self.tokens.len() {
-                    let t1 = self.tokens[i].clone();
-                    if i != self.tokens.len() - 1 && t1.ty == TokenType::HashMark {
-                        if let Some(elem) = self.tokens.get_mut(i + 1) {
-                            elem.stringize = true;
-                            v.push(elem.clone());
-                            i += 1;
+                self.tokens = self.tokens
+                    .into_iter()
+                    .scan(false, |is_prev_hashmark, mut t| {
+                        if *is_prev_hashmark {
+                            match t.ty {
+                                TokenType::Param(_) => t.stringize = true,
+                                _ => *is_prev_hashmark = false,
+                            }
                         } else {
-                            v.push(t1)
+                            *is_prev_hashmark = t.ty == TokenType::HashMark;
                         }
+                        Some(t)
+                    })
+                    .collect::<Vec<_>>();
+
+                let mut is_prev_stringize = false;
+                self.tokens.reverse();
+                self.tokens = self.tokens
+                    .into_iter()
+                    .filter_map(|t| if is_prev_stringize && t.ty == TokenType::HashMark {
+                        is_prev_stringize = t.stringize;
+                        None
                     } else {
-                        v.push(t1)
-                    }
-                    i += 1;
-                }
-                self.tokens = v;
+                        is_prev_stringize = t.stringize;
+                        Some(t)
+                    })
+                    .collect::<Vec<_>>();
+                self.tokens.reverse();
             }
             _ => unreachable!(),
         }
+        self
     }
 }
 
@@ -306,7 +318,7 @@ impl Preprocessor {
 
         let mut m = Macro::new(MacroType::Funclike(params));
         m.tokens = self.read_until_eol();
-        m.replace_params();
+        m = m.replace_params();
         self.macros.insert(name, m);
     }
 

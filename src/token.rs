@@ -176,7 +176,7 @@ impl Tokenizer {
         Token::new(ty, self.pos, self.filename.clone(), self.p.clone())
     }
 
-    // This doesnt support non-ASCII charactors.
+    // This does not support non-ASCII charactors.
     fn scan_char_type(ch: &char) -> CharactorType {
         if ch == &'\n' {
             CharactorType::NewLine
@@ -212,9 +212,7 @@ impl Tokenizer {
                 CharactorType::Alphabetic => self.ident(&keywords),
                 CharactorType::Digit => self.number(),
 
-                CharactorType::NonAlphabetic('\'') => {
-                    self.char_literal();
-                }
+                CharactorType::NonAlphabetic('\'') => self.char_literal(),
                 CharactorType::NonAlphabetic('\"') => self.string_literal(),
                 CharactorType::NonAlphabetic('/') => match self.p.get(self.pos + 1) {
                     Some('/') => self.line_comment(),
@@ -306,7 +304,7 @@ impl Tokenizer {
         }
     }
 
-    fn char_literal(&mut self) -> char {
+    fn char_literal(&mut self) {
         self.pos += 1;
         let result: char;
         let c = self.p.get(self.pos).expect("premature end of input");
@@ -332,7 +330,6 @@ impl Tokenizer {
         self.pos += 1;
         t.end = self.pos + 1;
         self.tokens.push(t);
-        return result;
     }
 
     fn string_literal(&mut self) {

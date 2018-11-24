@@ -192,11 +192,9 @@ impl Tokenizer {
     }
 
     fn get_word_head(&self, advance: usize) -> Option<CharactorType> {
-        if let Some(c) = self.p.get(self.pos + advance) {
-            Some(Self::scan_char_type(c))
-        } else {
-            None
-        }
+        self.p
+            .get(self.pos + advance)
+            .map(|c| Self::scan_char_type(c))
     }
 
     fn scan(&mut self, keywords: &HashMap<String, TokenType>) -> Vec<Token> {

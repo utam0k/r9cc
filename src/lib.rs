@@ -87,7 +87,7 @@ pub enum TokenType {
 }
 
 // Charactor Kind
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub enum CharactorType {
     Whitespace, // ' '
     NewLine,    // ' \n'

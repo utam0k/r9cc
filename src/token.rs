@@ -177,23 +177,23 @@ impl Tokenizer {
     }
 
     // This doesnt support non-ASCII charactors.
-    fn scan_char_type(ch: char) -> CharactorType {
-        if ch == '\n' {
+    fn scan_char_type(ch: &char) -> CharactorType {
+        if ch == &'\n' {
             CharactorType::NewLine
-        } else if ch == ' ' || ch == '\t' {
+        } else if ch == &' ' || ch == &'\t' {
             CharactorType::Whitespace
-        } else if ch.is_alphabetic() || ch == '_' {
+        } else if ch.is_alphabetic() || ch == &'_' {
             CharactorType::Alphabetic
         } else if ch.is_ascii_digit() {
             CharactorType::Digit
         } else {
-            CharactorType::NonAlphabetic(ch)
+            CharactorType::NonAlphabetic(ch.clone())
         }
     }
 
-    fn get_word_head(&mut self, advance: usize) -> Option<CharactorType> {
+    fn get_word_head(&self, advance: usize) -> Option<CharactorType> {
         if let Some(c) = self.p.get(self.pos + advance) {
-            Some(Self::scan_char_type(c.clone()))
+            Some(Self::scan_char_type(c))
         } else {
             None
         }

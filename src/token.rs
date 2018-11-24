@@ -177,28 +177,24 @@ impl Tokenizer {
     }
 
     // This does not support non-ASCII charactors.
-    fn scan_char_type(ch: &char) -> CharactorType {
-        if ch == &'\n' {
-            CharactorType::NewLine
-        } else if ch == &' ' || ch == &'\t' {
-            CharactorType::Whitespace
-        } else if ch.is_alphabetic() || ch == &'_' {
-            CharactorType::Alphabetic
-        } else if ch.is_ascii_digit() {
-            CharactorType::Digit
-        } else {
-            CharactorType::NonAlphabetic(ch.clone())
-        }
-    }
-
-    fn get_word_head(&self, advance: usize) -> Option<CharactorType> {
-        self.p
-            .get(self.pos + advance)
-            .map(|c| Self::scan_char_type(c))
+    fn get_charactor(&self, advance_from_pos: usize) -> Option<CharactorType> {
+        self.p.get(self.pos + advance_from_pos).map(|ch| {
+            if ch == &'\n' {
+                CharactorType::NewLine
+            } else if ch == &' ' || ch == &'\t' {
+                CharactorType::Whitespace
+            } else if ch.is_alphabetic() || ch == &'_' {
+                CharactorType::Alphabetic
+            } else if ch.is_ascii_digit() {
+                CharactorType::Digit
+            } else {
+                CharactorType::NonAlphabetic(ch.clone())
+            }
+        })
     }
 
     fn scan(&mut self, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
-        'outer: while let Some(head_char) = self.get_word_head(0) {
+        'outer: while let Some(head_char) = self.get_charactor(0) {
             match head_char {
                 CharactorType::NewLine => {
                     let mut t = self.new_token(TokenType::NewLine);

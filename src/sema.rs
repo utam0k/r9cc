@@ -1,10 +1,10 @@
 use parse::{Node, NodeType};
 use util::roundup;
-use {TokenType, Ctype, Type, Scope, Var};
+use {Ctype, Scope, TokenType, Type, Var};
 
-use std::sync::Mutex;
 use std::collections::HashMap;
 use std::mem;
+use std::sync::Mutex;
 
 // Quoted from 9cc
 // > Semantics analyzer. This pass plays a few important roles as shown
@@ -40,7 +40,7 @@ fn swap(p: &mut Box<Node>, q: &mut Box<Node>) {
     mem::swap(p, q);
 }
 
-lazy_static!{
+lazy_static! {
     static ref GLOBALS: Mutex<Vec<Var>> = Mutex::new(vec![]);
     static ref ENV: Mutex<Env> = Mutex::new(Env::new(None));
     static ref STRLABEL: Mutex<usize> = Mutex::new(0);
@@ -104,8 +104,10 @@ fn maybe_decay(base: Node, decay: bool) -> Node {
 
 fn check_lval(node: &Node) {
     let op = &node.op;
-    if !matches!(op, NodeType::Lvar(_)) && !matches!(op, NodeType::Gvar(_, _, _)) &&
-        !matches!(op, NodeType::Deref(_)) && !matches!(op, NodeType::Dot(_, _, _))
+    if !matches!(op, NodeType::Lvar(_))
+        && !matches!(op, NodeType::Gvar(_, _, _))
+        && !matches!(op, NodeType::Deref(_))
+        && !matches!(op, NodeType::Dot(_, _, _))
     {
         panic!("not an lvalue: {:?}", node.op);
     }
@@ -243,14 +245,14 @@ fn walk(mut node: Node, decay: bool) -> Node {
                     lhs = Box::new(walk(*lhs, true));
                     rhs = Box::new(walk(*rhs, true));
 
-                    if matches!(rhs.ty.ty , Ctype::Ptr(_)) {
+                    if matches!(rhs.ty.ty, Ctype::Ptr(_)) {
                         swap(&mut lhs, &mut rhs);
                     }
-                    if matches!(rhs.ty.ty , Ctype::Ptr(_)) {
+                    if matches!(rhs.ty.ty, Ctype::Ptr(_)) {
                         panic!("'pointer {:?} pointer' is not defined", node.op)
                     }
 
-                    if matches!(lhs.ty.ty , Ctype::Ptr(_)) {
+                    if matches!(lhs.ty.ty, Ctype::Ptr(_)) {
                         rhs = Box::new(Node::scale_ptr(rhs, &lhs.ty));
                     }
 
@@ -262,7 +264,7 @@ fn walk(mut node: Node, decay: bool) -> Node {
                     check_lval(&*lhs);
                     rhs = Box::new(walk(*rhs, true));
 
-                    if matches!(lhs.ty.ty , Ctype::Ptr(_)) {
+                    if matches!(lhs.ty.ty, Ctype::Ptr(_)) {
                         rhs = Box::new(Node::scale_ptr(rhs, &lhs.ty));
                     }
                     node.op = BinOp(token_type, lhs.clone(), rhs);
@@ -375,8 +377,7 @@ pub fn sema(nodes: Vec<Node>) -> (Vec<Node>, Vec<Var>) {
 
         let mut var;
         match &node.op {
-            NodeType::Func(name, _, _, _) |
-            NodeType::Decl(name) => {
+            NodeType::Func(name, _, _, _) | NodeType::Decl(name) => {
                 var = Var::new_global(node.ty.clone(), name.clone(), "".into(), 0, false);
                 ENV.lock().unwrap().vars.insert(name.clone(), var);
             }
@@ -388,7 +389,6 @@ pub fn sema(nodes: Vec<Node>) -> (Vec<Node>, Vec<Var>) {
         }
 
         if let NodeType::Func(name, args, body, _) = node.op {
-
             let mut args2 = vec![];
             for arg in args {
                 args2.push(walk(arg, true));

@@ -11,14 +11,13 @@
 // > in a later pass.
 
 use parse::{Node, NodeType};
-use {TokenType, Ctype, Type, Scope};
+use {Ctype, Scope, TokenType, Type};
 
 use std::sync::Mutex;
 
-lazy_static!{
+lazy_static! {
     static ref NUM_REGS: Mutex<usize> = Mutex::new(0);
     static ref NLABEL: Mutex<usize> = Mutex::new(1);
-
     static ref RETURN_LABEL: Mutex<usize> = Mutex::new(0);
     static ref RETURN_REG: Mutex<usize> = Mutex::new(0);
     static ref BREAK_LABEL: Mutex<usize> = Mutex::new(0);
@@ -116,8 +115,7 @@ impl From<TokenType> for IROp {
             TokenType::Minus => IROp::Sub,
             TokenType::Mul => IROp::Mul,
             TokenType::Div => IROp::Div,
-            TokenType::LeftAngleBracket |
-            TokenType::RightAngleBracket => IROp::LT,
+            TokenType::LeftAngleBracket | TokenType::RightAngleBracket => IROp::LT,
             e => panic!("cannot convert: {:?}", e),
         }
     }
@@ -283,9 +281,7 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
             add(IROp::Imm, r, Some(val as usize));
             return r;
         }
-        NodeType::Lvar(_) |
-        NodeType::Dot(_, _, _) |
-        NodeType::Gvar(_, _, _) => {
+        NodeType::Lvar(_) | NodeType::Dot(_, _, _) | NodeType::Gvar(_, _, _) => {
             let r = gen_lval(Box::new(node.clone()));
             load(&node.ty, r, r);
             return r;
@@ -374,8 +370,8 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
                     label(y);
                     return r1;
                 }
-                MulEQ | DivEQ | ModEQ | AddEQ | SubEQ | ShlEQ | ShrEQ | BitandEQ | XorEQ |
-                BitorEQ => gen_assign_op(&op, &node.ty, lhs, rhs),
+                MulEQ | DivEQ | ModEQ | AddEQ | SubEQ | ShlEQ | ShrEQ | BitandEQ | XorEQ
+                | BitorEQ => gen_assign_op(&op, &node.ty, lhs, rhs),
                 EQ => gen_binop(IROp::EQ, lhs, rhs),
                 NE => gen_binop(IROp::NE, lhs, rhs),
                 LE => gen_binop(IROp::LE, lhs, rhs),
@@ -538,8 +534,7 @@ fn gen_stmt(node: Node) {
             let r = gen_expr(expr);
             kill(r);
         }
-        NodeType::VecStmt(stmts) |
-        NodeType::CompStmt(stmts) => {
+        NodeType::VecStmt(stmts) | NodeType::CompStmt(stmts) => {
             for n in stmts {
                 gen_stmt(n);
             }

@@ -1,6 +1,6 @@
 use token::Token;
-use {TokenType, Ctype, Type, Scope};
 use util::roundup;
+use {Ctype, Scope, TokenType, Type};
 
 use std::collections::HashMap;
 
@@ -60,41 +60,41 @@ macro_rules! new_expr(
 
 #[derive(Debug, Clone)]
 pub enum NodeType {
-    Num(i32), // Number literal
-    Str(String, usize), // String literal, (data, len)
-    Ident(String), // Identifier
-    Decl(String), // declaration
-    Vardef(String, Option<Box<Node>>, Scope), // Variable definition, name = init
-    Lvar(Scope), // Variable reference
-    Gvar(String, String, usize), // Variable reference, (name, data, len)
-    BinOp(TokenType, Box<Node>, Box<Node>), // left-hand, right-hand
-    If(Box<Node>, Box<Node>, Option<Box<Node>>), // "if" ( cond ) then "else" els
-    Ternary(Box<Node>, Box<Node>, Box<Node>), // cond ? then : els
+    Num(i32),                                        // Number literal
+    Str(String, usize),                              // String literal, (data, len)
+    Ident(String),                                   // Identifier
+    Decl(String),                                    // declaration
+    Vardef(String, Option<Box<Node>>, Scope),        // Variable definition, name = init
+    Lvar(Scope),                                     // Variable reference
+    Gvar(String, String, usize),                     // Variable reference, (name, data, len)
+    BinOp(TokenType, Box<Node>, Box<Node>),          // left-hand, right-hand
+    If(Box<Node>, Box<Node>, Option<Box<Node>>),     // "if" ( cond ) then "else" els
+    Ternary(Box<Node>, Box<Node>, Box<Node>),        // cond ? then : els
     For(Box<Node>, Box<Node>, Box<Node>, Box<Node>), // "for" ( init; cond; inc ) body
     Break,
     DoWhile(Box<Node>, Box<Node>), // do { body } while(cond)
-    Addr(Box<Node>), // address-of operator("&"), expr
-    Deref(Box<Node>), // pointer dereference ("*"), expr
+    Addr(Box<Node>),               // address-of operator("&"), expr
+    Deref(Box<Node>),              // pointer dereference ("*"), expr
     Dot(Box<Node>, String, usize), // Struct member accessm, (expr, name, offset)
-    Exclamation(Box<Node>), // !, expr
-    Neg(Box<Node>), // -
-    PostInc(Box<Node>), // post ++
-    PostDec(Box<Node>), // post --
-    Return(Box<Node>), // "return", stmt
-    Sizeof(Box<Node>), // "sizeof", expr
-    Alignof(Box<Node>), // "_Alignof", expr
-    Call(String, Vec<Node>), // Function call(name, args)
+    Exclamation(Box<Node>),        // !, expr
+    Neg(Box<Node>),                // -
+    PostInc(Box<Node>),            // post ++
+    PostDec(Box<Node>),            // post --
+    Return(Box<Node>),             // "return", stmt
+    Sizeof(Box<Node>),             // "sizeof", expr
+    Alignof(Box<Node>),            // "_Alignof", expr
+    Call(String, Vec<Node>),       // Function call(name, args)
     Func(String, Vec<Node>, Box<Node>, usize), // Function definition(name, args, body, stacksize)
-    CompStmt(Vec<Node>), // Compound statement
-    VecStmt(Vec<Node>), // For the purpose of assign a value when initializing an array.
-    ExprStmt(Box<Node>), // Expression statement
-    StmtExpr(Box<Node>), // Statement expression (GNU extn.)
+    CompStmt(Vec<Node>),           // Compound statement
+    VecStmt(Vec<Node>),            // For the purpose of assign a value when initializing an array.
+    ExprStmt(Box<Node>),           // Expression statement
+    StmtExpr(Box<Node>),           // Statement expression (GNU extn.)
     Null,
 }
 
 #[derive(Debug, Clone)]
 pub struct Node {
-    pub op: NodeType, // Node type
+    pub op: NodeType,  // Node type
     pub ty: Box<Type>, // C type
 }
 
@@ -570,8 +570,8 @@ impl<'a> Parser<'a> {
     fn assign_op(ty: &TokenType) -> Option<&TokenType> {
         use self::TokenType::*;
         match ty {
-            Equal | MulEQ | DivEQ | ModEQ | AddEQ | SubEQ | ShlEQ | ShrEQ | BitandEQ | XorEQ |
-            BitorEQ => Some(ty),
+            Equal | MulEQ | DivEQ | ModEQ | AddEQ | SubEQ | ShlEQ | ShrEQ | BitandEQ | XorEQ
+            | BitorEQ => Some(ty),
             _ => None,
         }
     }
@@ -639,9 +639,11 @@ impl<'a> Parser<'a> {
                 NodeType::Deref,
                 Node::new_binop(TokenType::Plus, ident.clone(), Node::new(NodeType::Num(i)))
             );
-            init.push(Node::new(NodeType::ExprStmt(
-                Box::new(Node::new_binop(TokenType::Equal, node, val)),
-            )));
+            init.push(Node::new(NodeType::ExprStmt(Box::new(Node::new_binop(
+                TokenType::Equal,
+                node,
+                val,
+            )))));
             if !self.consume(TokenType::Comma) {
                 break;
             }
@@ -665,7 +667,6 @@ impl<'a> Parser<'a> {
 
         if let TokenType::Ident(_) = t.ty {
             node = Node::new(NodeType::Vardef(self.ident(), None, Scope::Local(0)));
-
         } else if self.consume(TokenType::LeftParen) {
             node = self.declarator(&mut placeholder);
             self.expect(TokenType::RightParen);

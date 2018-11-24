@@ -1,4 +1,4 @@
-use gen_ir::{IROp, Function, IRType, IR};
+use gen_ir::{Function, IROp, IRType, IR};
 
 use std::fmt;
 
@@ -55,7 +55,6 @@ impl<'a> From<&'a IROp> for IRInfo {
     }
 }
 
-
 impl fmt::Display for IR {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::IRType::*;
@@ -65,46 +64,39 @@ impl fmt::Display for IR {
         let lhs = self.lhs.unwrap();
         match info.ty {
             Label => write!(f, ".L{}:", lhs),
-            LabelAddr => {
-                match self.op {
-                    IROp::LabelAddr(ref name) => write!(f, "  {} r{}, {}", info.name, lhs, name),
-                    _ => unreachable!(),
-                }
-            }
+            LabelAddr => match self.op {
+                IROp::LabelAddr(ref name) => write!(f, "  {} r{}, {}", info.name, lhs, name),
+                _ => unreachable!(),
+            },
             Imm => write!(f, "  {} {}", info.name, lhs),
             Reg => write!(f, "  {} r{}", info.name, lhs),
             Jmp => write!(f, "  {} .L{}", info.name, lhs),
             RegReg => write!(f, "  {} r{}, r{}", info.name, lhs, self.rhs.unwrap()),
-            Mem | StoreArg => {
-                match self.op {
-                    IROp::Load(ref size) |
-                    IROp::Store(ref size) => {
-                        write!(f, "  {}{} r{}, {}", info.name, size, lhs, self.rhs.unwrap())
-                    }
-                    IROp::StoreArg(ref size) => {
-                        write!(f, "  {}{} {}, {}", info.name, size, lhs, self.rhs.unwrap())
-                    }
-                    _ => unreachable!(),
+            Mem | StoreArg => match self.op {
+                IROp::Load(ref size) | IROp::Store(ref size) => {
+                    write!(f, "  {}{} r{}, {}", info.name, size, lhs, self.rhs.unwrap())
                 }
-            }
+                IROp::StoreArg(ref size) => {
+                    write!(f, "  {}{} {}, {}", info.name, size, lhs, self.rhs.unwrap())
+                }
+                _ => unreachable!(),
+            },
             RegImm => write!(f, "  {} r{}, {}", info.name, lhs, self.rhs.unwrap() as i32),
             RegLabel => write!(f, "  {} r{}, .L{}", info.name, lhs, self.rhs.unwrap()),
-            Call => {
-                match self.op {
-                    IROp::Call(ref name, nargs, args) => {
-                        let mut sb: String = format!("  r{} = {}(", lhs, name);
-                        for i in 0..nargs {
-                            if i != 0 {
-                                sb.push_str(&format!(", "));
-                            }
-                            sb.push_str(&format!("r{}", args[i]));
+            Call => match self.op {
+                IROp::Call(ref name, nargs, args) => {
+                    let mut sb: String = format!("  r{} = {}(", lhs, name);
+                    for i in 0..nargs {
+                        if i != 0 {
+                            sb.push_str(&format!(", "));
                         }
-                        sb.push_str(")");
-                        write!(f, "{}", sb)
+                        sb.push_str(&format!("r{}", args[i]));
                     }
-                    _ => unreachable!(),
+                    sb.push_str(")");
+                    write!(f, "{}", sb)
                 }
-            }
+                _ => unreachable!(),
+            },
             Noarg => write!(f, "  {}", info.name),
         }
     }

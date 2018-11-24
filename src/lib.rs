@@ -1,13 +1,13 @@
 #![feature(core_intrinsics, dbg_macro, drain_filter, exclusive_range_pattern)]
 
-pub mod gen_x86;
 pub mod gen_ir;
+pub mod gen_x86;
 pub mod irdump;
 pub mod parse;
-pub mod regalloc;
-pub mod token;
-pub mod sema;
 pub mod preprocess;
+pub mod regalloc;
+pub mod sema;
+pub mod token;
 mod util;
 
 #[macro_use]
@@ -18,72 +18,83 @@ const REGS_N: usize = 7;
 // Token type
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
-    Num(i32), // Number literal
-    Str(String, usize), // String literal. (str, len)
+    Num(i32),            // Number literal
+    Str(String, usize),  // String literal. (str, len)
     CharLiteral(String), // Char literal.
-    Ident(String), // Identifier
-    Param(usize), // Function-like macro parameter
-    Arrow, // ->
-    Extern, // "extern"
-    Typedef, // "typedef"
-    Int, // "int"
-    Char, // "char"
-    Void, // "void"
-    Struct, // "struct"
-    Plus, // +
-    Minus, // -
-    Mul, // *
-    Div, // /
-    And, // &
-    Dot, // .
-    Comma, // ,
-    Exclamation, // !
-    Question, // ?
-    VerticalBar, // |
-    Hat, // ^
-    Colon, // :
-    HashMark, // #
-    If, // "if"
-    Else, // "else"
-    For, // "for"
-    Do, // "do"
-    While, // "while"
-    Break, // "break"
-    EQ, // ==
-    NE, // !=
-    LE, // <=
-    GE, // >=
-    Semicolon, // ;
-    LeftParen, // (
-    RightParen, // )
-    LeftBracket, // [
-    RightBracket, // ]
-    LeftBrace, // {
-    RightBrace, // }
-    LeftAngleBracket, // <
-    RightAngleBracket, // >
-    Equal, // =
-    Logor, // ||
-    Logand, // &&
-    SHL, // <<
-    Inc, // ++
-    Dec, // --
-    MulEQ, // *=
-    DivEQ, // /=
-    ModEQ, // %=
-    AddEQ, // +=
-    SubEQ, // -=
-    ShlEQ, // <<=
-    ShrEQ, // >>=
-    BitandEQ, // &=
-    XorEQ, // ^=
-    BitorEQ, // |=
-    SHR, // >>
-    Mod, // %
-    Return, // "return"
-    Sizeof, // "sizeof"
-    Alignof, // "_Alignof"
-    NewLine, // preprocessor-only token
+    Ident(String),       // Identifier
+    Param(usize),        // Function-like macro parameter
+    Arrow,               // ->
+    Extern,              // "extern"
+    Typedef,             // "typedef"
+    Int,                 // "int"
+    Char,                // "char"
+    Void,                // "void"
+    Struct,              // "struct"
+    Plus,                // +
+    Minus,               // -
+    Mul,                 // *
+    Div,                 // /
+    And,                 // &
+    Dot,                 // .
+    Comma,               // ,
+    Exclamation,         // !
+    Question,            // ?
+    VerticalBar,         // |
+    Hat,                 // ^
+    Colon,               // :
+    HashMark,            // #
+    If,                  // "if"
+    Else,                // "else"
+    For,                 // "for"
+    Do,                  // "do"
+    While,               // "while"
+    Break,               // "break"
+    EQ,                  // ==
+    NE,                  // !=
+    LE,                  // <=
+    GE,                  // >=
+    Semicolon,           // ;
+    LeftParen,           // (
+    RightParen,          // )
+    LeftBracket,         // [
+    RightBracket,        // ]
+    LeftBrace,           // {
+    RightBrace,          // }
+    LeftAngleBracket,    // <
+    RightAngleBracket,   // >
+    Equal,               // =
+    Logor,               // ||
+    Logand,              // &&
+    SHL,                 // <<
+    Inc,                 // ++
+    Dec,                 // --
+    MulEQ,               // *=
+    DivEQ,               // /=
+    ModEQ,               // %=
+    AddEQ,               // +=
+    SubEQ,               // -=
+    ShlEQ,               // <<=
+    ShrEQ,               // >>=
+    BitandEQ,            // &=
+    XorEQ,               // ^=
+    BitorEQ,             // |=
+    SHR,                 // >>
+    Mod,                 // %
+    Return,              // "return"
+    Sizeof,              // "sizeof"
+    Alignof,             // "_Alignof"
+    NewLine,             // preprocessor-only token
+}
+
+// Charactor Kind
+#[derive(Debug, PartialEq, Clone)]
+pub enum CharactorType {
+    Whitespace, // ' '
+    NewLine,    // ' \n'
+    Alphabetic,
+    Digit,
+    NonAlphabetic(char),
+    Unknown(char),
 }
 
 impl TokenType {
@@ -124,8 +135,8 @@ pub enum Ctype {
     Int,
     Char,
     Void,
-    Ptr(Box<Type>), // ptr of
-    Ary(Box<Type>, usize), // ary of, len
+    Ptr(Box<Type>),           // ptr of
+    Ary(Box<Type>, usize),    // ary of, len
     Struct(Vec<parse::Node>), // members
     Func(Box<Type>),
 }
@@ -139,7 +150,7 @@ impl Default for Ctype {
 #[derive(Debug, Clone)]
 pub struct Type {
     pub ty: Ctype,
-    pub size: usize, // sizeof
+    pub size: usize,  // sizeof
     pub align: usize, // alignof
 }
 
@@ -155,7 +166,7 @@ impl Default for Type {
 
 #[derive(Debug, Clone)]
 pub enum Scope {
-    Local(usize), // offset
+    Local(usize),                // offset
     Global(String, usize, bool), // data, len, is_extern
 }
 

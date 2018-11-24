@@ -1,11 +1,12 @@
 use preprocess;
+use CharactorType;
 use TokenType;
 
-use std::rc::Rc;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
+use std::rc::Rc;
 
 pub fn tokenize(path: String, ctx: &mut preprocess::Preprocessor) -> Vec<Token> {
     let mut tokenizer = Tokenizer::new(Rc::new(path));
@@ -133,7 +134,8 @@ lazy_static! {
         Symbol::new("&=", TokenType::BitandEQ),
         Symbol::new("^=", TokenType::XorEQ),
         Symbol::new("|=", TokenType::BitorEQ),
-    ].to_vec();
+    ]
+    .to_vec();
 }
 
 // Tokenizer
@@ -161,110 +163,118 @@ impl Tokenizer {
         let mut fp = io::stdin();
         if filename != &"-".to_string() {
             let mut fp = File::open(filename).expect("file not found");
-            fp.read_to_string(&mut input).expect(
-                "something went wrong reading the file",
-            );
+            fp.read_to_string(&mut input)
+                .expect("something went wrong reading the file");
             return input;
         }
-        fp.read_to_string(&mut input).expect(
-            "something went wrong reading the file",
-        );
+        fp.read_to_string(&mut input)
+            .expect("something went wrong reading the file");
         return input;
     }
-
 
     fn new_token(&self, ty: TokenType) -> Token {
         Token::new(ty, self.pos, self.filename.clone(), self.p.clone())
     }
 
-    fn scan(&mut self, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
-        'outer: while let Some(c) = self.p.get(self.pos).cloned() {
-            // New line (preprocessor-only token)
-            if c == '\n' {
-                let mut t = self.new_token(TokenType::NewLine);
-                self.pos += 1;
-                t.end = self.pos;
-                self.tokens.push(t);
-                continue;
-            }
-
-            // Skip whitespce
-            if c.is_whitespace() {
-                self.pos += 1;
-                continue;
-            }
-
-            // Line comment
-            if self.p.get(self.pos..self.pos + 2) == Some(&['/', '/']) {
-                while self.p.get(self.pos) != Some(&'\n') {
-                    self.pos += 1;
-                }
-                continue;
-            }
-
-            // Block comment
-            if self.p.get(self.pos..self.pos + 2) == Some(&['/', '*']) {
-                self.block_comment();
-                continue;
-            }
-
-            // Character literal
-            if c == '\'' {
-                self.char_literal();
-                continue;
-            }
-
-
-            // String literal
-            if c == '"' {
-                self.string_literal();
-                continue;
-            }
-
-            // Multi-letter symbol
-            for symbol in SYMBOLS.iter() {
-                let name = symbol.name;
-                let len = name.len();
-                if self.pos + len > self.p.len() {
-                    continue;
-                }
-
-                let first = &self.p[self.pos..self.pos + len];
-                if name.to_string() != first.into_iter().collect::<String>() {
-                    continue;
-                }
-
-                let mut t = self.new_token(symbol.ty.clone());
-                self.pos += len;
-                t.end = self.pos;
-                self.tokens.push(t);
-                continue 'outer;
-            }
-
-            // Single-letter symbol
-            if let Some(ty) = TokenType::new_single_letter(&c) {
-                let mut t = self.new_token(ty);
-                self.pos += 1;
-                t.end = self.pos;
-                self.tokens.push(t);
-                continue;
-            };
-
-            // Keyword or identifier
-            if c.is_alphabetic() || c == '_' {
-                self.ident(&keywords);
-                continue;
-            }
-
-            // Number
-            if c.is_ascii_digit() {
-                self.number();
-                continue;
-            }
-
-            self.bad_position("cannot tokenize");
+    // This doesnt support non-ASCII charactors.
+    fn scan_char_type(ch: char) -> CharactorType {
+        if ch == '\n' {
+            CharactorType::NewLine
+        } else if ch == ' ' || ch == '\t' {
+            CharactorType::Whitespace
+        } else if ch.is_alphabetic() || ch == '_' {
+            CharactorType::Alphabetic
+        } else if ch.is_ascii_digit() {
+            CharactorType::Digit
+        } else {
+            CharactorType::NonAlphabetic(ch)
         }
+    }
+
+    fn get_word_head(&mut self, advance: usize) -> Option<CharactorType> {
+        if let Some(c) = self.p.get(self.pos + advance) {
+            Some(Self::scan_char_type(c.clone()))
+        } else {
+            None
+        }
+    }
+
+    fn scan(&mut self, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
+        'outer: while let Some(head_char) = self.get_word_head(0) {
+            match head_char {
+                CharactorType::NewLine => {
+                    let mut t = self.new_token(TokenType::NewLine);
+                    self.pos += 1;
+                    t.end = self.pos;
+                    self.tokens.push(t);
+                }
+                CharactorType::Whitespace => self.pos += 1,
+                CharactorType::Alphabetic => self.ident(&keywords),
+                CharactorType::Digit => self.number(),
+
+                CharactorType::NonAlphabetic('\'') => {
+                    self.char_literal();
+                }
+                CharactorType::NonAlphabetic('\"') => self.string_literal(),
+                CharactorType::NonAlphabetic('/') => match self.p.get(self.pos + 1) {
+                    Some('/') => self.line_comment(),
+                    Some('*') => self.block_comment(),
+                    Some('=') => {
+                        let mut t = self.new_token(TokenType::DivEQ);
+                        self.pos += 2;
+                        t.end = self.pos;
+                        self.tokens.push(t);
+                    }
+                    // This is Dividing operator
+                    _ => {
+                        let mut t = self.new_token(TokenType::Div);
+                        self.pos += 1;
+                        t.end = self.pos;
+                        self.tokens.push(t);
+                    }
+                },
+                CharactorType::NonAlphabetic(c) => {
+                    // Multi-letter symbol
+                    for symbol in SYMBOLS.iter() {
+                        let name = symbol.name;
+                        let len = name.len();
+                        if self.pos + len > self.p.len() {
+                            continue;
+                        }
+
+                        let first = &self.p[self.pos..self.pos + len];
+                        if name.to_string() != first.into_iter().collect::<String>() {
+                            continue;
+                        }
+
+                        let mut t = self.new_token(symbol.ty.clone());
+                        self.pos += len;
+                        t.end = self.pos;
+                        self.tokens.push(t);
+                        continue 'outer;
+                    }
+
+                    // Single-letter symbol
+                    if let Some(ty) = TokenType::new_single_letter(&c) {
+                        let mut t = self.new_token(ty);
+                        self.pos += 1;
+                        t.end = self.pos;
+                        self.tokens.push(t);
+                        continue 'outer;
+                    }
+                    self.bad_position("Unknown symbol.");
+                }
+                CharactorType::Unknown(_) => self.bad_position("Unknwon charactor type."),
+            }
+        }
+
         self.tokens.clone()
+    }
+
+    fn line_comment(&mut self) {
+        while self.p.get(self.pos) != Some(&'\n') {
+            self.pos += 1;
+        }
     }
 
     fn block_comment(&mut self) {
@@ -382,8 +392,7 @@ impl Tokenizer {
 
     fn number(&mut self) {
         match self.p.get(self.pos..self.pos + 2) {
-            Some(&['0', 'x']) |
-            Some(&['0', 'X']) => {
+            Some(&['0', 'x']) | Some(&['0', 'X']) => {
                 self.pos += 2;
                 self.parse_number(16);
             }
@@ -482,7 +491,8 @@ impl Tokenizer {
     }
 
     fn strip_newlines_tokens(&mut self) {
-        self.tokens = self.tokens
+        self.tokens = self
+            .tokens
             .clone()
             .into_iter()
             .filter(|t| t.ty != TokenType::NewLine)

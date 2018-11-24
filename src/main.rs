@@ -1,13 +1,13 @@
 extern crate r9cc;
 
-use r9cc::gen_x86::gen_x86;
 use r9cc::gen_ir::gen_ir;
+use r9cc::gen_x86::gen_x86;
 use r9cc::irdump::dump_ir;
 use r9cc::parse::parse;
-use r9cc::regalloc::alloc_regs;
-use r9cc::token::tokenize;
-use r9cc::sema::sema;
 use r9cc::preprocess::Preprocessor;
+use r9cc::regalloc::alloc_regs;
+use r9cc::sema::sema;
+use r9cc::token::tokenize;
 
 use std::env;
 use std::process;

@@ -1,11 +1,11 @@
 // C preprocessor
 
-use token::{Token, tokenize};
+use token::{tokenize, Token};
 use TokenType;
 
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::mem;
+use std::rc::Rc;
 
 pub fn preprocess(tokens: Vec<Token>, ctx: &mut Preprocessor) -> Vec<Token> {
     ctx.preprocess_impl(tokens)
@@ -58,7 +58,6 @@ impl Macro {
     }
 
     fn replace_params(mut self) -> Self {
-
         match self.ty {
             MacroType::Funclike(ref params) => {
                 let mut map = HashMap::new();
@@ -89,7 +88,8 @@ impl Macro {
                 }
 
                 // Process '#' followed by a macro parameter.
-                self.tokens = self.tokens
+                self.tokens = self
+                    .tokens
                     .into_iter()
                     .scan(false, |is_prev_hashmark, mut t| {
                         if *is_prev_hashmark {
@@ -106,14 +106,17 @@ impl Macro {
 
                 let mut is_prev_stringize = false;
                 self.tokens.reverse();
-                self.tokens = self.tokens
+                self.tokens = self
+                    .tokens
                     .into_iter()
-                    .filter_map(|t| if is_prev_stringize && t.ty == TokenType::HashMark {
-                        is_prev_stringize = t.stringize;
-                        None
-                    } else {
-                        is_prev_stringize = t.stringize;
-                        Some(t)
+                    .filter_map(|t| {
+                        if is_prev_stringize && t.ty == TokenType::HashMark {
+                            is_prev_stringize = t.stringize;
+                            None
+                        } else {
+                            is_prev_stringize = t.stringize;
+                            Some(t)
+                        }
                     })
                     .collect::<Vec<_>>();
                 self.tokens.reverse();
@@ -123,7 +126,6 @@ impl Macro {
         self
     }
 }
-
 
 pub struct Preprocessor {
     macros: HashMap<String, Macro>,
@@ -163,8 +165,7 @@ impl Preprocessor {
     fn ident(&mut self, msg: &str) -> String {
         let t = self.next().expect(msg);
         match t.ty {
-            TokenType::Ident(s) |
-            TokenType::Str(s, _) => s,
+            TokenType::Ident(s) | TokenType::Str(s, _) => s,
             _ => t.bad_token(msg),
         }
     }
@@ -287,11 +288,9 @@ impl Preprocessor {
             match t.ty {
                 TokenType::Param(val) => {
                     if t.stringize {
-                        self.env.output.push(Self::stringize(
-                            &args[val],
-                            t.filename,
-                            t.buf,
-                        ));
+                        self.env
+                            .output
+                            .push(Self::stringize(&args[val], t.filename, t.buf));
                     } else {
                         self.env.output.append(&mut args[val].clone());
                     }
@@ -365,7 +364,6 @@ impl Preprocessor {
                 }
                 continue;
             }
-
 
             if t.ty != TokenType::HashMark {
                 self.env.output.push(t);

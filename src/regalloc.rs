@@ -1,4 +1,4 @@
-use gen_ir::{IROp, IR, IRType, Function};
+use gen_ir::{Function, IROp, IRType, IR};
 use irdump::IRInfo;
 use REGS_N;
 

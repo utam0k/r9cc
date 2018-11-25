@@ -1,5 +1,5 @@
 use preprocess;
-use CharactorType;
+use CharacterType;
 use TokenType;
 
 use std::collections::HashMap;
@@ -176,39 +176,39 @@ impl Tokenizer {
         Token::new(ty, self.pos, self.filename.clone(), self.p.clone())
     }
 
-    // This does not support non-ASCII charactors.
-    fn get_charactor(&self, advance_from_pos: usize) -> Option<CharactorType> {
+    // This does not support non-ASCII characters.
+    fn get_character(&self, advance_from_pos: usize) -> Option<CharacterType> {
         self.p.get(self.pos + advance_from_pos).map(|ch| {
             if ch == &'\n' {
-                CharactorType::NewLine
+                CharacterType::NewLine
             } else if ch == &' ' || ch == &'\t' {
-                CharactorType::Whitespace
+                CharacterType::Whitespace
             } else if ch.is_alphabetic() || ch == &'_' {
-                CharactorType::Alphabetic
+                CharacterType::Alphabetic
             } else if ch.is_ascii_digit() {
-                CharactorType::Digit
+                CharacterType::Digit
             } else {
-                CharactorType::NonAlphabetic(ch.clone())
+                CharacterType::NonAlphabetic(ch.clone())
             }
         })
     }
 
     fn scan(&mut self, keywords: &HashMap<String, TokenType>) -> Vec<Token> {
-        'outer: while let Some(head_char) = self.get_charactor(0) {
+        'outer: while let Some(head_char) = self.get_character(0) {
             match head_char {
-                CharactorType::NewLine => {
+                CharacterType::NewLine => {
                     let mut t = self.new_token(TokenType::NewLine);
                     self.pos += 1;
                     t.end = self.pos;
                     self.tokens.push(t);
                 }
-                CharactorType::Whitespace => self.pos += 1,
-                CharactorType::Alphabetic => self.ident(&keywords),
-                CharactorType::Digit => self.number(),
+                CharacterType::Whitespace => self.pos += 1,
+                CharacterType::Alphabetic => self.ident(&keywords),
+                CharacterType::Digit => self.number(),
 
-                CharactorType::NonAlphabetic('\'') => self.char_literal(),
-                CharactorType::NonAlphabetic('\"') => self.string_literal(),
-                CharactorType::NonAlphabetic('/') => match self.p.get(self.pos + 1) {
+                CharacterType::NonAlphabetic('\'') => self.char_literal(),
+                CharacterType::NonAlphabetic('\"') => self.string_literal(),
+                CharacterType::NonAlphabetic('/') => match self.p.get(self.pos + 1) {
                     Some('/') => self.line_comment(),
                     Some('*') => self.block_comment(),
                     Some('=') => {
@@ -225,7 +225,7 @@ impl Tokenizer {
                         self.tokens.push(t);
                     }
                 },
-                CharactorType::NonAlphabetic(c) => {
+                CharacterType::NonAlphabetic(c) => {
                     // Multi-letter symbol
                     for symbol in SYMBOLS.iter() {
                         let name = symbol.name;
@@ -256,7 +256,7 @@ impl Tokenizer {
                     }
                     self.bad_position("Unknown symbol.");
                 }
-                CharactorType::Unknown(_) => self.bad_position("Unknwon charactor type."),
+                CharacterType::Unknown(_) => self.bad_position("Unknwon character type."),
             }
         }
 

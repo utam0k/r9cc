@@ -69,7 +69,7 @@ fn into_new_range<T: Sized>(param: T, f: Box<Fn(T) -> T>) -> T {
     // Rollback
     let env = ENV.lock().unwrap().clone();
     *ENV.lock().unwrap() = *env.next.unwrap();
-    return ret;
+    ret
 }
 
 fn find_var(name: &String) -> Option<Var> {

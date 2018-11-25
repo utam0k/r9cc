@@ -169,7 +169,7 @@ impl Tokenizer {
         }
         fp.read_to_string(&mut input)
             .expect("something went wrong reading the file");
-        return input;
+        input
     }
 
     fn new_token(&self, ty: TokenType) -> Token {

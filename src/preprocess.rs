@@ -183,7 +183,7 @@ impl Preprocessor {
             return false;
         }
         self.env.pos += 1;
-        return true;
+        true
     }
 
     fn read_until_eol(&mut self) -> Vec<Token> {

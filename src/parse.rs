@@ -228,7 +228,7 @@ impl<'a> Parser<'a> {
             return false;
         }
         self.pos += 1;
-        return true;
+        true
     }
 
     fn is_typename(&self, t: &Token) -> bool {
@@ -256,7 +256,7 @@ impl<'a> Parser<'a> {
                 panic!();
             }
         }
-        return (off, align);
+        (off, align)
     }
 
     fn add_member(ty: &mut Type, mut members: Vec<Node>) {
@@ -311,7 +311,7 @@ impl<'a> Parser<'a> {
                         self.env.tags.insert(tag, ty.clone());
                     }
                 }
-                return Some(ty.clone());
+                Some(ty.clone())
             }
             _ => t.bad_token("typename expected"),
         }
@@ -352,7 +352,7 @@ impl<'a> Parser<'a> {
                     args.push(self.assign());
                 }
                 self.expect(TokenType::RightParen);
-                return Node::new(NodeType::Call(name.clone(), args));
+                Node::new(NodeType::Call(name.clone(), args))
             }
             TokenType::LeftParen => {
                 if self.consume(TokenType::LeftBrace) {
@@ -517,7 +517,7 @@ impl<'a> Parser<'a> {
         while self.consume(TokenType::And) {
             lhs = Node::new_binop(TokenType::And, lhs, self.equality());
         }
-        return lhs;
+        lhs
     }
 
     fn bit_xor(&mut self) -> Node {
@@ -525,7 +525,7 @@ impl<'a> Parser<'a> {
         while self.consume(TokenType::Hat) {
             lhs = Node::new_binop(TokenType::Hat, lhs, self.bit_and());
         }
-        return lhs;
+        lhs
     }
 
     fn bit_or(&mut self) -> Node {
@@ -533,7 +533,7 @@ impl<'a> Parser<'a> {
         while self.consume(TokenType::VerticalBar) {
             lhs = Node::new_binop(TokenType::VerticalBar, lhs, self.bit_xor());
         }
-        return lhs;
+        lhs
     }
 
     fn logand(&mut self) -> Node {
@@ -541,7 +541,7 @@ impl<'a> Parser<'a> {
         while self.consume(TokenType::Logand) {
             lhs = Node::new_binop(TokenType::Logand, lhs, self.logand());
         }
-        return lhs;
+        lhs
     }
 
     fn logor(&mut self) -> Node {
@@ -549,7 +549,7 @@ impl<'a> Parser<'a> {
         while self.consume(TokenType::Logor) {
             lhs = Node::new_binop(TokenType::Logor, lhs, self.logand());
         }
-        return lhs;
+        lhs
     }
 
     fn conditional(&mut self) -> Node {
@@ -591,7 +591,7 @@ impl<'a> Parser<'a> {
         if !self.consume(TokenType::Comma) {
             return lhs;
         }
-        return Node::new_binop(TokenType::Comma, lhs, self.expr());
+        Node::new_binop(TokenType::Comma, lhs, self.expr())
     }
 
     fn ctype(&mut self) -> Type {
@@ -650,7 +650,7 @@ impl<'a> Parser<'a> {
             i += 1;
         }
         self.expect(TokenType::RightBrace);
-        return Node::new(NodeType::VecStmt(init));
+        Node::new(NodeType::VecStmt(init))
     }
 
     fn update_ptr_to(&mut self, src: &mut Box<Type>, dst: Box<Type>) {
@@ -701,7 +701,7 @@ impl<'a> Parser<'a> {
                 _ => unreachable!(),
             }
         }
-        return node;
+        node
     }
 
     fn declarator(&mut self, ty: &mut Type) -> Node {
@@ -715,7 +715,7 @@ impl<'a> Parser<'a> {
         let mut ty = self.decl_specifiers().unwrap();
         let node = self.declarator(&mut ty);
         self.expect(TokenType::Semicolon);
-        return node;
+        node
     }
 
     fn param_declaration(&mut self) -> Node {
@@ -826,7 +826,7 @@ impl<'a> Parser<'a> {
                 if self.is_typename(&self.tokens[self.pos]) {
                     return self.declaration();
                 }
-                return self.expr_stmt();
+                self.expr_stmt()
             }
         }
     }

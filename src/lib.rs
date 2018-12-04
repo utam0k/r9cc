@@ -183,7 +183,6 @@ impl Var {
     }
 
     fn new_global(ty: Box<Type>, name: String, data: String, len: usize, is_extern: bool) -> Self {
-        let var = Var::new(ty, name.clone(), Scope::Global(data, len, is_extern));
-        return var;
+        Var::new(ty, name.clone(), Scope::Global(data, len, is_extern))
     }
 }

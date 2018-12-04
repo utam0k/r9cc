@@ -86,9 +86,9 @@ pub enum TokenType {
     NewLine,             // preprocessor-only token
 }
 
-// Charactor Kind
+// Character Kind
 #[derive(Debug, PartialEq)]
-pub enum CharactorType {
+pub enum CharacterType {
     Whitespace, // ' '
     NewLine,    // ' \n'
     Alphabetic,

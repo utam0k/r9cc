@@ -88,7 +88,7 @@ impl fmt::Display for IR {
                     let mut sb: String = format!("  r{} = {}(", lhs, name);
                     for i in 0..nargs {
                         if i != 0 {
-                            sb.push_str(&format!(", "));
+                            sb.push_str(&", ".to_string());
                         }
                         sb.push_str(&format!("r{}", args[i]));
                     }

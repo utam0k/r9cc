@@ -528,7 +528,7 @@ fn print_line(buf: &Vec<char>, path: &String, pos: usize) {
         }
         print!("{}", p);
     }
-    print!("\n");
+    println!("");
     for _ in 0..col - 1 {
         print!(" ");
     }

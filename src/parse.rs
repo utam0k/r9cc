@@ -184,7 +184,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn find_tag(&self, name: &String) -> Option<Type> {
+    fn find_tag(&self, name: &str) -> Option<Type> {
         let mut next: &Option<Box<Env>> = &Some(Box::new(self.env.clone()));
         loop {
             if let Some(ref e) = next {
@@ -199,7 +199,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn find_typedef(&self, name: &String) -> Option<Type> {
+    fn find_typedef(&self, name: &str) -> Option<Type> {
         let mut next: &Option<Box<Env>> = &Some(Box::new(self.env.clone()));
         loop {
             if let Some(ref e) = next {

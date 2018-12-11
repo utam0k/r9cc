@@ -72,7 +72,7 @@ fn into_new_range<T: Sized>(param: T, f: Box<Fn(T) -> T>) -> T {
     ret
 }
 
-fn find_var(name: &String) -> Option<Var> {
+fn find_var(name: &str) -> Option<Var> {
     let env = ENV.lock().unwrap().clone();
     let mut next: &Option<Box<Env>> = &Some(Box::new(env));
     loop {

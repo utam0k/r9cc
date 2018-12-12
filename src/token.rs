@@ -464,14 +464,13 @@ impl Tokenizer {
 
         for mut t in self.tokens.clone().into_iter() {
             if let Some(ref last) = last_may {
-                match (&last.ty, &t.ty) {
-                    (TokenType::Str(ref last_str, _), TokenType::Str(ref t_str, _)) => {
-                        let new = self.append(last_str, t_str, last.start);
-                        v.pop();
-                        v.push(new);
-                        continue;
-                    }
-                    _ => (),
+                if let (TokenType::Str(ref last_str, _), TokenType::Str(ref t_str, _)) =
+                    (&last.ty, &t.ty)
+                {
+                    let new = self.append(last_str, t_str, last.start);
+                    v.pop();
+                    v.push(new);
+                    continue;
                 }
             }
 

@@ -89,9 +89,9 @@ fn gen(f: Function) {
     let ret = format!(".Lend{}", *LABEL.lock().unwrap());
     *LABEL.lock().unwrap() += 1;
 
-    print!(".text\n");
-    print!(".global {}\n", f.name);
-    print!("{}:\n", f.name);
+    println!(".text");
+    println!(".global {}", f.name);
+    println!("{}:", f.name);
     emit!("push rbp");
     emit!("mov rbp, rsp");
     emit!("sub rsp, {}", roundup(f.stacksize, 16));
@@ -123,7 +123,7 @@ fn gen(f: Function) {
 
                 emit!("mov {}, rax", REGS[lhs]);
             }
-            Label => print!(".L{}:\n", lhs),
+            Label => println!(".L{}:", lhs),
             LabelAddr(name) => emit!("lea {}, {}", REGS[lhs], name),
             Neg => emit!("neg {}", REGS[lhs]),
             EQ => emit_cmp(ir, "sete"),
@@ -198,7 +198,7 @@ fn gen(f: Function) {
         }
     }
 
-    print!("{}:\n", ret);
+    println!("{}:", ret);
     emit!("pop r15");
     emit!("pop r14");
     emit!("pop r13");
@@ -209,14 +209,14 @@ fn gen(f: Function) {
 }
 
 pub fn gen_x86(globals: Vec<Var>, fns: Vec<Function>) {
-    print!(".intel_syntax noprefix\n");
-    print!(".data\n");
+    println!(".intel_syntax noprefix");
+    println!(".data");
     for var in globals {
         if let Scope::Global(data, len, is_extern) = var.scope {
             if is_extern {
                 continue;
             }
-            print!("{}:\n", var.name);
+            println!("{}:", var.name);
             emit!(".ascii \"{}\"", backslash_escape(data, len));
             continue;
         }

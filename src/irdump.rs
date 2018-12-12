@@ -104,9 +104,9 @@ impl fmt::Display for IR {
 
 pub fn dump_ir(fns: &Vec<Function>) {
     for f in fns {
-        eprint!("{}(): \n", f.name);
+        eprintln!("{}(): ", f.name);
         for ir in &f.ir {
-            eprint!("{}\n", ir);
+            eprintln!("{}", ir);
         }
     }
 }

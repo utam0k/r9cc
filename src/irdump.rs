@@ -10,7 +10,7 @@ pub struct IRInfo {
 
 impl IRInfo {
     pub fn new(name: &'static str, ty: IRType) -> Self {
-        IRInfo { name: name, ty: ty }
+        IRInfo { name, ty }
     }
 }
 

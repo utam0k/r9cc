@@ -152,7 +152,7 @@ impl Tokenizer {
     fn new(filename: Rc<String>) -> Self {
         Tokenizer {
             p: Rc::new(Self::read_file(&filename).chars().collect()),
-            filename: filename,
+            filename,
             pos: 0,
             tokens: vec![],
         }

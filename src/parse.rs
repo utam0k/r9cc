@@ -896,20 +896,15 @@ impl<'a> Parser<'a> {
         }
 
         // Global variable
-        let mut node;
-        if is_extern {
-            node = Node::new(NodeType::Vardef(
-                name,
-                None,
-                Scope::Global(String::new(), 0, true),
-            ));
-        } else {
-            node = Node::new(NodeType::Vardef(
-                name,
-                None,
-                Scope::Global(String::new(), ty.size, false),
-            ));
-        }
+        let mut node = Node::new(NodeType::Vardef(
+            name,
+            None,
+            if is_extern {
+                Scope::Global(String::new(), 0, true)
+            } else {
+                Scope::Global(String::new(), ty.size, false)
+            },
+        ));
         node.ty = Box::new(ty);
         Some(node)
     }

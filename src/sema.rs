@@ -211,7 +211,7 @@ fn walk(mut node: Node, decay: bool) -> Node {
                 if members.is_empty() {
                     panic!("incomplete type");
                 }
-                let m_may = members.into_iter().find(|m| {
+                let m_may = members.iter().find(|m| {
                     if let NodeType::Vardef(ref m_name, _, _) = m.op {
                         if m_name != &name {
                             return false;

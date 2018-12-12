@@ -158,7 +158,7 @@ impl Tokenizer {
         }
     }
 
-    fn read_file(filename: &String) -> String {
+    fn read_file(filename: &str) -> String {
         let mut input = String::new();
         let mut fp = io::stdin();
         if filename != &"-".to_string() {
@@ -235,7 +235,7 @@ impl Tokenizer {
                         }
 
                         let first = &self.p[self.pos..self.pos + len];
-                        if name.to_string() != first.into_iter().collect::<String>() {
+                        if name != first.into_iter().collect::<String>() {
                             continue;
                         }
 
@@ -274,7 +274,7 @@ impl Tokenizer {
         loop {
             if let Some(two_char) = self.p.get(self.pos..self.pos + 2) {
                 self.pos += 1;
-                if two_char == &['*', '/'] {
+                if two_char == ['*', '/'] {
                     self.pos += 1;
                     return;
                 }
@@ -447,7 +447,7 @@ impl Tokenizer {
         }
     }
 
-    fn append(&mut self, x_str: &String, y_str: &String, start: usize) -> Token {
+    fn append(&mut self, x_str: &str, y_str: &str, start: usize) -> Token {
         let concated = format!("{}{}", x_str, y_str);
         let l = concated.len() + 1; // Because `+1` has `\0`.
         Token::new(
@@ -498,7 +498,7 @@ impl Tokenizer {
 
 // Finds a line pointed by a given pointer from the input file
 // to print it out.
-fn print_line(buf: &Vec<char>, path: &String, pos: usize) {
+fn print_line(buf: &[char], path: &str, pos: usize) {
     let mut p = 0;
     let mut start = 0;
     let mut line = 0;

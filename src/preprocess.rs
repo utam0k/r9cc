@@ -235,7 +235,7 @@ impl Preprocessor {
         v
     }
 
-    fn stringize(tokens: &Vec<Token>, filename: Rc<String>, buf: Rc<Vec<char>>) -> Token {
+    fn stringize(tokens: &[Token], filename: Rc<String>, buf: Rc<Vec<char>>) -> Token {
         let mut sb = String::new();
         for i in 0..tokens.len() {
             let t = &tokens[i];
@@ -273,7 +273,7 @@ impl Preprocessor {
         }
     }
 
-    fn apply_funclike(&mut self, tokens: Vec<Token>, params: &Vec<String>, start: &Token) {
+    fn apply_funclike(&mut self, tokens: Vec<Token>, params: &[String], start: &Token) {
         self.get(TokenType::LeftParen, "comma expected");
         let mut args = self.read_args();
         if params.len() != args.len() {

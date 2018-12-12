@@ -182,7 +182,7 @@ fn gen_lval(node: Box<Node>) -> Option<usize> {
         NodeType::Deref(expr) => gen_expr(expr),
         NodeType::Dot(ref expr, _, ref offset) => {
             let r = gen_lval(expr.clone());
-            add(IROp::AddImm, r, Some(offset.clone()));
+            add(IROp::AddImm, r, Some(*offset));
             r
         }
         NodeType::Lvar(Scope::Local(offset)) => {

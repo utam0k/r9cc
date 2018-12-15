@@ -84,7 +84,7 @@ impl Token {
     }
 
     pub fn tokstr(&self) -> String {
-        self.buf[self.start..self.end].into_iter().collect()
+        self.buf[self.start..self.end].iter().collect()
     }
 
     pub fn get_line_number(&self) -> usize {
@@ -235,7 +235,7 @@ impl Tokenizer {
                         }
 
                         let first = &self.p[self.pos..self.pos + len];
-                        if name != first.into_iter().collect::<String>() {
+                        if name != first.iter().collect::<String>() {
                             continue;
                         }
 
@@ -369,7 +369,7 @@ impl Tokenizer {
             break;
         }
 
-        let name: String = self.p[self.pos..self.pos + len].into_iter().collect();
+        let name: String = self.p[self.pos..self.pos + len].iter().collect();
         let mut t;
         if let Some(keyword) = keywords.get(&name) {
             t = self.new_token(keyword.clone());

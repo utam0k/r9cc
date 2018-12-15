@@ -73,7 +73,7 @@ impl Macro {
                             if let Some(n) = map.get(name) {
                                 if let Some(elem) = self.tokens.get_mut(i) {
                                     *elem = Token::new(
-                                        TokenType::Param(n.clone()),
+                                        TokenType::Param(*n),
                                         0,
                                         t.filename.clone(),
                                         t.buf.clone(),

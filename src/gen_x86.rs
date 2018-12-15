@@ -41,7 +41,7 @@ fn backslash_escape(s: String, len: usize) -> String {
             } else if c.is_ascii_graphic() || c == &' ' {
                 sb.push(c.clone());
             } else {
-                sb.push_str(&format!("\\{:o}", c.clone() as i8));
+                sb.push_str(&format!("\\{:o}", *c as i8));
             }
             if i == len - 1 {
                 sb.push_str("\\000");

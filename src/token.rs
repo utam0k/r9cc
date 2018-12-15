@@ -188,7 +188,7 @@ impl Tokenizer {
             } else if ch.is_ascii_digit() {
                 CharacterType::Digit
             } else {
-                CharacterType::NonAlphabetic(ch.clone())
+                CharacterType::NonAlphabetic(*ch)
             }
         })
     }
@@ -303,7 +303,7 @@ impl Tokenizer {
         let result: char;
         let c = self.p.get(self.pos).expect("premature end of input");
         if c != &'\\' {
-            result = c.clone();
+            result = *c;
             self.pos += 1;
         } else {
             self.pos += 1;
@@ -311,7 +311,7 @@ impl Tokenizer {
             result = if let Some(esc) = Self::escaped(c2) {
                 esc
             } else {
-                c2.clone()
+                *c2
             };
             self.pos += 1;
         }

@@ -86,11 +86,11 @@ impl fmt::Display for IR {
             Call => match self.op {
                 IROp::Call(ref name, nargs, args) => {
                     let mut sb: String = format!("  r{} = {}(", lhs, name);
-                    for i in 0..nargs {
+                    for (i, arg) in args.iter().enumerate().take(nargs) {
                         if i != 0 {
                             sb.push_str(&", ".to_string());
                         }
-                        sb.push_str(&format!("r{}", args[i]));
+                        sb.push_str(&format!("r{}", *arg));
                     }
                     sb.push_str(")");
                     write!(f, "{}", sb)

@@ -61,8 +61,8 @@ impl Macro {
         match self.ty {
             MacroType::Funclike(ref params) => {
                 let mut map = HashMap::new();
-                for i in 0..params.len() {
-                    let name = params[i].clone();
+                for (i, item) in params.iter().enumerate() {
+                    let name = item.clone();
                     map.insert(name, i);
                 }
 
@@ -237,8 +237,7 @@ impl Preprocessor {
 
     fn stringize(tokens: &[Token], filename: Rc<String>, buf: Rc<Vec<char>>) -> Token {
         let mut sb = String::new();
-        for i in 0..tokens.len() {
-            let t = &tokens[i];
+        for (i, t) in tokens.iter().enumerate() {
             if i != 0 {
                 sb.push(' ');
             }

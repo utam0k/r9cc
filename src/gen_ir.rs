@@ -297,8 +297,8 @@ fn gen_expr(node: Box<Node>) -> Option<usize> {
 
             add(IROp::Call(name, args.len(), args_ir), r, None);
 
-            for i in 0..args.len() {
-                kill(Some(args_ir[i]));
+            for arg in args_ir.iter().take(args.len()) {
+                kill(Some(*arg));
             }
             r
         }
@@ -551,8 +551,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<Function> {
                 *CODE.lock().unwrap() = vec![];
                 // *NUM_REGS.lock().unwrap() = 0;
 
-                for i in 0..args.len() {
-                    let arg = &args[i];
+                for (i, arg) in args.iter().enumerate() {
                     if let NodeType::Vardef(_, _, Scope::Local(offset)) = arg.op {
                         store_arg(&arg.ty, Some(offset), Some(i));
                     } else {

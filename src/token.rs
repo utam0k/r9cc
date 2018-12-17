@@ -247,7 +247,7 @@ impl Tokenizer {
                     }
 
                     // Single-letter symbol
-                    if let Some(ty) = TokenType::new_single_letter(&c) {
+                    if let Some(ty) = TokenType::new_single_letter(c) {
                         let mut t = self.new_token(ty);
                         self.pos += 1;
                         t.end = self.pos;
@@ -284,7 +284,7 @@ impl Tokenizer {
         }
     }
 
-    fn escaped(c: &char) -> Option<char> {
+    fn escaped(c: char) -> Option<char> {
         // Issue: https://github.com/rust-lang/rfcs/issues/751
         match c {
             // 'a' => Some("\a"),
@@ -308,7 +308,7 @@ impl Tokenizer {
         } else {
             self.pos += 1;
             let c2 = self.p.get(self.pos).unwrap();
-            result = if let Some(esc) = Self::escaped(c2) {
+            result = if let Some(esc) = Self::escaped(*c2) {
                 esc
             } else {
                 *c2
@@ -350,7 +350,7 @@ impl Tokenizer {
 
             len += 1;
             c2 = self.p.get(self.pos + len).unwrap();
-            if let Some(esc) = Self::escaped(c2) {
+            if let Some(esc) = Self::escaped(*c2) {
                 sb.push(esc);
             } else {
                 sb.push(c2.clone());

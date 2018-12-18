@@ -36,7 +36,7 @@ macro_rules! matches(
     )
 );
 
-fn swap(p: &mut Box<Node>, q: &mut Box<Node>) {
+fn swap(p: &mut Node, q: &mut Node) {
     mem::swap(p, q);
 }
 

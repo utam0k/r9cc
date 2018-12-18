@@ -98,7 +98,7 @@ pub enum CharacterType {
 }
 
 impl TokenType {
-    fn new_single_letter(c: &char) -> Option<Self> {
+    fn new_single_letter(c: char) -> Option<Self> {
         use self::TokenType::*;
         match c {
             '+' => Some(Plus),

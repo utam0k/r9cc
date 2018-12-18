@@ -180,8 +180,7 @@ fn gen(f: Function) {
             }
             MulImm => {
                 if rhs < 256 && rhs.count_ones() == 1 {
-                    use std::intrinsics::cttz;
-                    emit!("shl {}, {}", REGS[lhs], unsafe { cttz(rhs) });
+                    emit!("shl {}, {}", REGS[lhs], rhs.trailing_zeros());
                 } else {
                     emit!("mov rax, {}", rhs as i32);
                     emit!("mul {}", REGS[lhs]);

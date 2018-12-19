@@ -142,7 +142,7 @@ fn gen(f: Function) {
                 emit!("shr {}, cl", REGS[lhs]);
             }
             Mod => {
-                /* Same mean(?).
+                /* Same meaning(?).
                  * emit!("mov rdx, 0");
                  * emit!("mov rax, {}", REGS[lhs]);
                  */

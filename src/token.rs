@@ -287,13 +287,13 @@ impl Tokenizer {
     fn escaped(c: char) -> Option<char> {
         // Issue: https://github.com/rust-lang/rfcs/issues/751
         match c {
-            // 'a' => Some("\a"),
-            // 'b' => Some("\b"),
-            // 'f' => Some("\f"),
+            // 'a' => Some('\a'),
+            // 'b' => Some('\b'),
+            // 'f' => Some('\f'),
             'n' => Some('\n'),
             'r' => Some('\r'),
             't' => Some('\t'),
-            // 'v' => Some("\v"),
+            // 'v' => Some('\v'),
             _ => None,
         }
     }

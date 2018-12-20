@@ -62,8 +62,8 @@ fn alloc(ir_reg: usize) -> usize {
 fn visit(irv: &mut Vec<IR>) {
     use self::IRType::*;
 
-    for i in 0..irv.len() {
-        let mut ir = irv[i].clone();
+    for item in irv {
+        let mut ir = item.clone();
         let info = &IRInfo::from(&ir.op);
 
         match info.ty {
@@ -94,7 +94,7 @@ fn visit(irv: &mut Vec<IR>) {
             used_set(lhs, false);
             ir.op = IROp::Nop;
         }
-        irv[i] = ir;
+        *item = ir;
     }
 }
 

@@ -1,4 +1,4 @@
-use gen_ir::{Function, IROp, IRType, IR};
+use crate::gen_ir::{Function, IROp, IRType, IR};
 
 use std::fmt;
 

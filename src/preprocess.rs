@@ -1,7 +1,7 @@
 // C preprocessor
 
-use token::{tokenize, Token};
-use TokenType;
+use crate::token::{tokenize, Token};
+use crate::TokenType;
 
 use std::collections::HashMap;
 use std::mem;
@@ -356,7 +356,7 @@ impl Preprocessor {
                 macro_name = None;
             }
             if let Some(name) = macro_name {
-                if let Some(mut m) = self.macros.get(&name).cloned() {
+                if let Some(m) = self.macros.get(&name).cloned() {
                     self.apply(m, &t);
                 } else {
                     self.env.output.push(t);

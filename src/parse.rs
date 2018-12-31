@@ -1,6 +1,6 @@
-use token::Token;
-use util::roundup;
-use {Ctype, Scope, TokenType, Type};
+use crate::token::Token;
+use crate::util::roundup;
+use crate::{Ctype, Scope, TokenType, Type};
 
 use std::collections::HashMap;
 

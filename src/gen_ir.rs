@@ -10,8 +10,8 @@
 // > Such infinite number of registers are mapped to a finite registers
 // > in a later pass.
 
-use parse::{Node, NodeType};
-use {Ctype, Scope, TokenType, Type};
+use crate::parse::{Node, NodeType};
+use crate::{Ctype, Scope, TokenType, Type};
 
 use std::sync::Mutex;
 

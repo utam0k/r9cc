@@ -5,7 +5,7 @@ r9cc is a toy project of compiler.
 This is the [9cc](https://github.com/rui314/9cc) Rust version.
 
 # Usage
-Nightly version after 2018-10-1 is required.
+Rust 2018 edition is required.
 
 - Compile
 

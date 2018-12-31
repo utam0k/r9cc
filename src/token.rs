@@ -1,6 +1,6 @@
-use preprocess;
-use CharacterType;
-use TokenType;
+use crate::preprocess;
+use crate::CharacterType;
+use crate::TokenType;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -462,7 +462,7 @@ impl Tokenizer {
         let mut v = vec![];
         let mut last_may: Option<Token> = None;
 
-        for mut t in self.tokens.clone().into_iter() {
+        for t in self.tokens.clone().into_iter() {
             if let Some(ref last) = last_may {
                 if let (TokenType::Str(ref last_str, _), TokenType::Str(ref t_str, _)) =
                     (&last.ty, &t.ty)

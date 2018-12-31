@@ -1,6 +1,6 @@
-use parse::{Node, NodeType};
-use util::roundup;
-use {Ctype, Scope, TokenType, Type, Var};
+use crate::parse::{Node, NodeType};
+use crate::util::roundup;
+use crate::{Ctype, Scope, TokenType, Type, Var};
 
 use std::collections::HashMap;
 use std::mem;
@@ -163,7 +163,7 @@ fn walk(mut node: Node, decay: bool) -> Node {
             );
 
             let mut init = None;
-            if let Some(mut init2) = init_may {
+            if let Some(init2) = init_may {
                 init = Some(Box::new(walk(*init2, true)));
             }
             node.op = Vardef(name, init, Scope::Local(offset));
@@ -172,7 +172,7 @@ fn walk(mut node: Node, decay: bool) -> Node {
             cond = Box::new(walk(*cond, true));
             then = Box::new(walk(*then, true));
             let mut new_els = None;
-            if let Some(mut els) = els_may {
+            if let Some(els) = els_may {
                 new_els = Some(Box::new(walk(*els, true)));
             }
             node.op = If(cond, then, new_els);
@@ -375,7 +375,7 @@ pub fn sema(nodes: Vec<Node>) -> (Vec<Node>, Vec<Var>) {
             continue;
         }
 
-        let mut var;
+        let var;
         match &node.op {
             NodeType::Func(name, _, _, _) | NodeType::Decl(name) => {
                 var = Var::new_global(node.ty.clone(), name.clone(), "".into(), 0, false);

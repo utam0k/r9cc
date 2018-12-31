@@ -1,6 +1,6 @@
-use gen_ir::{Function, IROp, IRType, IR};
-use irdump::IRInfo;
-use REGS_N;
+use crate::gen_ir::{Function, IROp, IRType, IR};
+use crate::irdump::IRInfo;
+use crate::REGS_N;
 
 use std::sync::Mutex;
 

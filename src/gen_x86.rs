@@ -1,6 +1,6 @@
-use gen_ir::{Function, IROp, IR};
-use util::roundup;
-use {Scope, Var, REGS_N};
+use crate::gen_ir::{Function, IROp, IR};
+use crate::util::roundup;
+use crate::{Scope, Var, REGS_N};
 
 const REGS: [&str; REGS_N] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
 const REGS8: [&str; REGS_N] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];

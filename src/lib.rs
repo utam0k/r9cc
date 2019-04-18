@@ -13,6 +13,16 @@ extern crate lazy_static;
 
 const REGS_N: usize = 7;
 
+#[macro_export]
+macro_rules! matches(
+    ($e:expr, $p:pat) => (
+        match $e {
+            $p => true,
+            _ => false
+        }
+    )
+);
+
 // Token type
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {

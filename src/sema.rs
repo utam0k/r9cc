@@ -1,3 +1,4 @@
+use crate::matches;
 use crate::parse::{Node, NodeType};
 use crate::util::roundup;
 use crate::{Ctype, Scope, TokenType, Type, Var};
@@ -26,15 +27,6 @@ use std::sync::Mutex;
 // >   for integer and becomes ptr+8 for pointer.
 // >
 // > - Reject bad assignments, such as `1=2+3`.
-
-macro_rules! matches(
-    ($e:expr, $p:pat) => (
-        match $e {
-            $p => true,
-            _ => false
-        }
-    )
-);
 
 fn swap(p: &mut Node, q: &mut Node) {
     mem::swap(p, q);

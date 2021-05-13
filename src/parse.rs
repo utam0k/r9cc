@@ -807,7 +807,10 @@ impl<'a> Parser<'a> {
                 self.expect(TokenType::Semicolon);
                 Node::new(NodeType::DoWhile(body, cond))
             }
-            TokenType::Break => Node::new(NodeType::Break),
+            TokenType::Break => {
+                self.expect(TokenType::Semicolon);
+                Node::new(NodeType::Break)
+            }
             TokenType::Return => {
                 let expr = self.expr();
                 self.expect(TokenType::Semicolon);

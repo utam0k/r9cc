@@ -54,7 +54,7 @@ impl Env {
     }
 }
 
-fn into_new_range<T: Sized>(param: T, f: Box<Fn(T) -> T>) -> T {
+fn into_new_range<T: Sized>(param: T, f: Box<dyn Fn(T) -> T>) -> T {
     let env = ENV.lock().unwrap().clone();
     *ENV.lock().unwrap() = Env::new(Some(Box::new(env)));
     let ret = f(param);

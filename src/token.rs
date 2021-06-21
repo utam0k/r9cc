@@ -491,7 +491,7 @@ impl Tokenizer {
 
     fn bad_position(&self, msg: &'static str) {
         print_line(&self.p, &self.filename, self.pos);
-        panic!(msg);
+        panic!("{}", msg);
     }
 }
 

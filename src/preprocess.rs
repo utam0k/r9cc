@@ -274,7 +274,7 @@ impl Preprocessor {
 
     fn apply_funclike(&mut self, tokens: Vec<Token>, params: &[String], start: &Token) {
         self.get(TokenType::LeftParen, "comma expected");
-        let mut args = self.read_args();
+        let args = self.read_args();
         if params.len() != args.len() {
             start.bad_token("number of parameter does not match");
         }
